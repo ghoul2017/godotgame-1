@@ -19,6 +19,13 @@ godotgame1.sln
 
 不要只打开目录后直接构建，否则 Rider 可能显示 `No loaded projects`，并调用 Visual Studio 的 MSBuild 触发 `MSBuild.rsp` 重复响应文件问题。
 
+打开 `.sln` 后，Rider 的运行下拉应显示共享配置：
+
+- `Godot Editor`: 打开 Godot 编辑器。
+- `Godot Player`: 运行 `project.godot` 中配置的主场景。
+
+如果之前打开目录时创建过本机运行配置，它们可能只保存在 `.idea/workspace.xml`，切换为打开 `.sln` 后不会自动继承；使用上述共享配置即可。
+
 本机 Godot .NET 位于：
 
 ```text
