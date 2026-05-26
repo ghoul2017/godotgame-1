@@ -119,10 +119,10 @@ public partial class GameRoot : Control
         expeditionState.ActiveUnitInstanceIds.Add("unit_dexter");
         expeditionState.ActiveUnitInstanceIds.Add("unit_drone_scout_01");
         expeditionState.ActiveUnitInstanceIds.Add("unit_drone_scout_02");
-        expeditionState.SurfaceInventoryIds.Add(dropCargoId);
+        expeditionState.LocationInventoryIds.Add(dropCargoId);
         expeditionState.RocketState.CargoInventoryId = rocketCargoId;
         expeditionState.MapState.ExploredRegionIds.Add("drop_zone_ruined_array");
-        expeditionState.MapState.DiscoveredResourcePointIds.Add("nearby_scrap_field");
+        expeditionState.MapState.DiscoveredMineralSourceIds.Add("nearby_scrap_field");
         expeditionState.MapState.DiscoveredRuinIds.Add("ruin_signal_cache");
         InventoryContainer dropCargo = new()
         {

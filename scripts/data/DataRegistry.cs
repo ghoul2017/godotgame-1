@@ -75,20 +75,20 @@ public sealed class DataRegistry
 
     private void AddItems()
     {
-        AddItem("metal", "金属", "basic_resource", "ore", "可回收结构金属，是多数建筑和平台的基础材料。", 0.25f, 2, "resource", "metallic");
-        AddItem("silicon", "硅", "basic_resource", "mineral", "用于电子元件和传感器阵列的半导体材料。", 0.18f, 3, "resource", "electronics");
-        AddItem("rare_earth", "稀土", "basic_resource", "mineral", "高性能电机和合金不可缺少的稀有矿物。", 0.2f, 8, "resource", "advanced");
-        AddItem("energy_cell", "能源块", "basic_resource", "power", "稳定封装能源，用于空投、生产和火箭回归。", 0.35f, 6, "resource", "energy");
-        AddItem("scrap", "废料", "basic_resource", "salvage", "旧世界机械残骸，可回收为金属和零件。", 0.3f, 1, "resource", "salvage");
-        AddItem("alloy", "合金", "advanced_resource", "material", "承力结构和火箭部件使用的强化材料。", 0.28f, 12, "resource", "advanced");
-        AddItem("electronic_parts", "电子元件", "advanced_resource", "component", "组装机、扫描器和机器人平台的基础控制组件。", 0.12f, 10, "resource", "electronics");
-        AddItem("clean_data", "纯净数据", "advanced_resource", "data", "从污染存储器中整理出的可用旧世界数据。", 0.02f, 18, "resource", "data");
+        AddItem("metal", "金属", "basic_mineral", "ore", "可回收结构金属，是多数建筑和平台的基础材料。", 0.25f, 2, "mineral", "metallic", "build_material");
+        AddItem("silicon", "硅", "basic_mineral", "mineral", "用于电子元件和传感器阵列的半导体材料。", 0.18f, 3, "mineral", "electronics");
+        AddItem("rare_earth", "稀土", "basic_mineral", "mineral", "高性能电机和合金不可缺少的稀有矿物。", 0.2f, 8, "mineral", "advanced");
+        AddItem("energy_cell", "能源块", "basic_mineral", "power", "稳定封装能源，用于空投、生产和火箭回归。", 0.35f, 6, "mineral", "energy");
+        AddItem("scrap", "废料", "basic_mineral", "salvage", "旧世界机械残骸，可回收为金属和零件。", 0.3f, 1, "mineral", "salvage");
+        AddItem("alloy", "合金", "processed_item", "material", "承力结构和火箭部件使用的强化材料。", 0.28f, 12, "material", "advanced");
+        AddItem("electronic_parts", "电子元件", "processed_item", "component", "组装机、扫描器和机器人平台的基础控制组件。", 0.12f, 10, "material", "electronics");
+        AddItem("clean_data", "纯净数据", "processed_item", "data", "从污染存储器中整理出的可用旧世界数据。", 0.02f, 18, "material", "data");
         AddItem("data_core", "数据核心", "data_core", "quest", "传闻保存旧人类智慧和权限指令的核心目标。", 1.2f, 500, "quest", "data");
         _items["data_core"].IsUnique = true;
         _items["data_core"].IsQuestItem = true;
         _items["data_core"].CanDiscard = false;
         AddItem("ai_chip_basic", "通用 AI 芯片", "ai_chip", "brain", "可承载基础行为协议的集成智能核心。", 0.08f, 60, "chip", "instance_item");
-        AddItem("scanner_basic", "简易扫描器", "tool", "scanner", "用于短距扫描资源点和废墟信号的手持工具。", 0.7f, 35, "tool", "instance_item");
+        AddItem("scanner_basic", "简易扫描器", "tool", "scanner", "用于短距扫描矿产点和废墟信号的手持工具。", 0.7f, 35, "tool", "instance_item");
         AddItem("repair_tool_basic", "简易维修工具", "tool", "repair", "服务型单位使用的基础维修工具。", 0.8f, 30, "tool", "instance_item");
         AddItem("rifle_basic", "简易实弹枪", "weapon", "ballistic", "旧式弹道武器，适合服务型平台应急防御。", 1.4f, 45, "weapon", "instance_item");
         AddItem("servo_mod_basic", "基础伺服改装件", "mod_part", "mobility", "提高民用平台关节输出的通用改装件。", 0.45f, 40, "mod_part", "instance_item");
@@ -160,7 +160,7 @@ public sealed class DataRegistry
             IconPath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.svg",
             SpritePath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.svg"
         };
-        pod.AcceptedTags.AddRange(new[] { "resource", "tool", "weapon", "chip", "mod_part", "unit_platform", "quest" });
+        pod.AcceptedTags.AddRange(new[] { "mineral", "material", "tool", "weapon", "chip", "mod_part", "unit_platform", "building_module", "quest" });
         _dropPods.Add(pod.Id, pod);
     }
 

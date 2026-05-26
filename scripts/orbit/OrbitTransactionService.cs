@@ -53,7 +53,7 @@ public sealed class OrbitTransactionService
         string affordabilityIssue = CheckCost(offer.GetCostItems(), offer.CostCredits);
         if (!string.IsNullOrEmpty(affordabilityIssue))
         {
-            return OrbitActionEvaluation.Blocked("资源不足", affordabilityIssue);
+            return OrbitActionEvaluation.Blocked("库存不足", affordabilityIssue);
         }
 
         string rewardIssue = CheckRewardCapacity(offer.GetRewardItems(), offer.GetCostItems());
@@ -91,7 +91,7 @@ public sealed class OrbitTransactionService
         string affordabilityIssue = CheckCost(project.GetCostItems(), project.CostCredits);
         if (!string.IsNullOrEmpty(affordabilityIssue))
         {
-            return OrbitActionEvaluation.Blocked("资源不足", affordabilityIssue);
+            return OrbitActionEvaluation.Blocked("库存不足", affordabilityIssue);
         }
 
         return OrbitActionEvaluation.Ready("可研发");
@@ -604,7 +604,7 @@ public sealed class OrbitTransactionService
         {
             Id = "trade_basic_energy_cells",
             DisplayName = "能源块补给",
-            Category = "资源补给",
+            Category = "矿产补给",
             Description = "从轨道补给商购买稳定能源块，用于空投准备、地表生产和火箭制造。",
             CostCredits = 40,
             IconPath = "res://assets/ui/orbit/trade/trade_basic_energy_cells.svg"
@@ -630,7 +630,7 @@ public sealed class OrbitTransactionService
             Id = "trade_basic_scanner",
             DisplayName = "简易扫描器",
             Category = "探索工具",
-            Description = "购买基础扫描器，为地表资源点、废墟和特殊信号调查提供工具入口。",
+            Description = "购买基础扫描器，为地表矿产点、废墟和特殊信号调查提供工具入口。",
             CostCredits = 35,
             IconPath = "res://assets/ui/orbit/trade/trade_basic_scanner.svg"
         };

@@ -22,7 +22,7 @@ public partial class OrbitStation
         rows = rows.Where(row => InventoryFilterMatches(row.FilterKey)).ToList();
         if (rows.Count == 0)
         {
-            AddEmptyListMessage("当前轨道库存无可显示物资。需要通过远征回归、交易或研发获得资源。");
+            AddEmptyListMessage("当前轨道库存无可显示道具。需要通过远征回归、交易或研发获得新道具。");
             ShowEmptyDetail("库存为空", "库存页不会用假物品填充列表；回归结算写入后会直接读取同一份轨道库存。");
             return;
         }
@@ -62,7 +62,8 @@ public partial class OrbitStation
         _filterContainer?.AddChild(filters);
 
         AddFilterButton(filters, "全部", "all", UiAssets.OrbitCategoryAll);
-        AddFilterButton(filters, "资源", "resource", UiAssets.OrbitCategoryResource);
+        AddFilterButton(filters, "矿产", "mineral", UiAssets.OrbitCategoryMineral);
+        AddFilterButton(filters, "物资", "material", UiAssets.OrbitCategoryMaterial);
         AddFilterButton(filters, "装备", "equipment", UiAssets.OrbitCategoryEquipment);
         AddFilterButton(filters, "芯片", "chip", UiAssets.OrbitCategoryChip);
         AddFilterButton(filters, "单位平台", "unit_platform", UiAssets.OrbitCategoryUnitPlatform);

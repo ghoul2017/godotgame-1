@@ -6,7 +6,7 @@
 script = ExtResource("1_trade")
 Id = "trade_basic_energy_cells"
 DisplayName = "能源块补给"
-Category = "资源补给"
+Category = "矿产补给"
 Description = "从轨道补给商购买稳定能源块，用于空投准备、地表生产和火箭制造。"
 CostCredits = 40
 RewardItemIds = Array[String](["energy_cell"])

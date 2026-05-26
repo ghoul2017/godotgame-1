@@ -15,6 +15,9 @@ public sealed class GameSession
     public Dictionary<string, ItemInstance> ItemInstances { get; } = new();
     public Dictionary<string, UnitInstance> UnitInstances { get; } = new();
     public Dictionary<string, BuildingInstance> BuildingInstances { get; } = new();
+    public Dictionary<string, GroundItemState> GroundItems { get; } = new();
+    public Dictionary<string, ConstructionSiteState> ConstructionSites { get; } = new();
+    public Dictionary<string, LogisticsOrderState> LogisticsOrders { get; } = new();
     public List<InventoryTransfer> InventoryTransfers { get; } = new();
     public List<OrbitTransactionRecord> OrbitTransactionRecords { get; } = new();
 }

@@ -11,7 +11,8 @@ public sealed class BuildingInstance
     public int Durability { get; set; }
     public float ConstructionProgress { get; set; }
     public string PowerState { get; set; } = "offline";
-    public string InventoryId { get; set; } = string.Empty;
+    public string InputInventoryId { get; set; } = string.Empty;
+    public string OutputInventoryId { get; set; } = string.Empty;
     public string ActiveRecipeId { get; set; } = string.Empty;
     public float ProductionProgress { get; set; }
 }

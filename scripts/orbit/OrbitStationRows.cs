@@ -68,7 +68,7 @@ public partial class OrbitStation
                 IsInstance = isInstance,
                 InstanceId = instanceId,
                 IsQuestItem = itemData.IsQuestItem,
-                IsResearchMaterial = itemData.Tags.Contains("resource") || itemData.Category is "blueprint" or "data_core",
+                IsResearchMaterial = itemData.Category is "basic_mineral" or "processed_item" or "building_module" or "blueprint" or "data_core",
                 CanDrop = !itemData.IsQuestItem || itemData.Tags.Contains("quest")
             };
             row.Tags.AddRange(itemData.Tags);
@@ -79,13 +79,14 @@ public partial class OrbitStation
         {
             return itemData.Category switch
             {
-                "basic_resource" or "advanced_resource" => "resource",
+                "basic_mineral" => "mineral",
+                "processed_item" or "building_module" => "material",
                 "weapon" or "tool" or "mod_part" => "equipment",
                 "ai_chip" => "chip",
                 "unit_platform" => "unit_platform",
                 "blueprint" => "blueprint",
                 "data_core" => "key",
-                _ => itemData.IsQuestItem ? "key" : "resource"
+                _ => itemData.IsQuestItem ? "key" : "material"
             };
         }
 
@@ -93,8 +94,8 @@ public partial class OrbitStation
         {
             return category switch
             {
-                "basic_resource" => "基础资源",
-                "advanced_resource" => "高级资源",
+                "basic_mineral" => "基础矿产",
+                "processed_item" => "加工物资",
                 "data_core" => "关键数据",
                 "ai_chip" => "AI 芯片",
                 "mod_part" => "改装件",

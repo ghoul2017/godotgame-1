@@ -19,6 +19,7 @@ public sealed class SaveGameService
         ValidateActiveExpedition(saveGame, registry, report);
         ValidateRunRecords(saveGame, report);
         ValidateOrbitTransactions(saveGame, registry, report);
+        ValidateSurfaceLocationState(saveGame, registry, report);
         ValidateInstanceOwnership(saveGame, report);
         return report;
     }
@@ -262,6 +263,76 @@ public sealed class SaveGameService
             if (cargoWeight > activeExpedition.RocketState.CargoWeightLimit && !activeExpedition.RocketState.IsOverloaded)
             {
                 report.Add(DefinitionStatus.RecoverableError, $"当前远征火箭货舱超载但未标记：{activeExpedition.ExpeditionId}");
+            }
+        }
+
+        foreach (string groundItemStateId in activeExpedition.GroundItemStateIds)
+        {
+            if (!saveGame.GroundItems.ContainsKey(groundItemStateId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失地上道具：{groundItemStateId}");
+            }
+        }
+
+        foreach (string constructionSiteId in activeExpedition.ConstructionSiteIds)
+        {
+            if (!saveGame.ConstructionSites.ContainsKey(constructionSiteId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失施工点：{constructionSiteId}");
+            }
+        }
+
+        foreach (string logisticsOrderId in activeExpedition.LogisticsOrderIds)
+        {
+            if (!saveGame.LogisticsOrders.ContainsKey(logisticsOrderId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失物流订单：{logisticsOrderId}");
+            }
+        }
+    }
+
+    private static void ValidateSurfaceLocationState(SaveGame saveGame, DataRegistry registry, DataLoadReport report)
+    {
+        foreach (GroundItemState groundItem in saveGame.GroundItems.Values)
+        {
+            if (groundItem.Stack.Count > 0 &&
+                !registry.TryGetItem(groundItem.Stack.ItemId, out ItemData? _))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"地上道具 {groundItem.GroundItemStateId} 引用缺失道具：{groundItem.Stack.ItemId}");
+            }
+        }
+
+        foreach (ConstructionSiteState constructionSite in saveGame.ConstructionSites.Values)
+        {
+            if (!registry.TryGetBuilding(constructionSite.BuildingId, out BuildingData? _))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"施工点 {constructionSite.ConstructionSiteId} 引用缺失建筑：{constructionSite.BuildingId}");
+            }
+
+            if (string.IsNullOrEmpty(constructionSite.DeliveredInventoryId) ||
+                !saveGame.Inventories.TryGetValue(constructionSite.DeliveredInventoryId, out InventoryContainer? deliveredInventory) ||
+                deliveredInventory.OwnerType != "construction_site")
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"施工点 {constructionSite.ConstructionSiteId} 缺少施工点库存");
+            }
+        }
+
+        foreach (LogisticsOrderState order in saveGame.LogisticsOrders.Values)
+        {
+            if (order.Count <= 0)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"物流订单 {order.LogisticsOrderId} 数量非法");
+            }
+
+            if (!registry.TryGetItem(order.ItemId, out ItemData? _))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"物流订单 {order.LogisticsOrderId} 引用缺失道具：{order.ItemId}");
+            }
+
+            if (string.IsNullOrEmpty(order.SourceLocation.LocationType) ||
+                string.IsNullOrEmpty(order.TargetLocation.LocationType))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"物流订单 {order.LogisticsOrderId} 缺少来源或目标位置");
             }
         }
     }

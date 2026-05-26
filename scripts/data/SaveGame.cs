@@ -14,6 +14,9 @@ public sealed class SaveGame
     public Dictionary<string, ItemInstance> ItemInstances => GameSession.ItemInstances;
     public Dictionary<string, UnitInstance> UnitInstances => GameSession.UnitInstances;
     public Dictionary<string, BuildingInstance> BuildingInstances => GameSession.BuildingInstances;
+    public Dictionary<string, GroundItemState> GroundItems => GameSession.GroundItems;
+    public Dictionary<string, ConstructionSiteState> ConstructionSites => GameSession.ConstructionSites;
+    public Dictionary<string, LogisticsOrderState> LogisticsOrders => GameSession.LogisticsOrders;
     public Dictionary<string, InventoryContainer> Inventories => GameSession.Inventories;
     public List<InventoryTransfer> InventoryTransfers => GameSession.InventoryTransfers;
     public List<OrbitTransactionRecord> OrbitTransactionRecords => GameSession.OrbitTransactionRecords;

@@ -108,7 +108,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         VBoxContainer topBar = new()
         {
-            Name = "TopResourceBar"
+            Name = "TopStatusBar"
         };
         topBar.SetAnchorsPreset(Control.LayoutPreset.TopWide);
         RegisterUiInputBlocker(topBar);
@@ -120,13 +120,6 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             HorizontalAlignment = HorizontalAlignment.Center
         };
         topBar.AddChild(_statusLabel);
-
-        Label resourceBar = new()
-        {
-            Text = "金属 0  |  硅 0  |  稀土 0  |  能源块 0  |  废料 0",
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        topBar.AddChild(resourceBar);
 
         PanelContainer minimapPanel = new()
         {

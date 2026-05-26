@@ -20,7 +20,8 @@ public static class UiAssets
     public const string IconMinimap = "res://assets/ui/icons/surface_minimap.svg";
 
     public const string OrbitCategoryAll = "res://assets/ui/orbit/categories/category_all.svg";
-    public const string OrbitCategoryResource = "res://assets/ui/orbit/categories/category_resource.svg";
+    public const string OrbitCategoryMineral = "res://assets/ui/orbit/categories/category_mineral.svg";
+    public const string OrbitCategoryMaterial = "res://assets/ui/orbit/categories/category_material.svg";
     public const string OrbitCategoryEquipment = "res://assets/ui/orbit/categories/category_equipment.svg";
     public const string OrbitCategoryChip = "res://assets/ui/orbit/categories/category_chip.svg";
     public const string OrbitCategoryUnitPlatform = "res://assets/ui/orbit/categories/category_unit_platform.svg";
