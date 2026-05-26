@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ResearchProjectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/ResearchProjectData.cs" id="1_research"]
+
+[resource]
+script = ExtResource("1_research")
+Id = "research_basic_scanning_protocol"
+DisplayName = "基础扫描协议"
+Category = "探索协议"
+Description = "解析废墟信号样本，解锁基础扫描协议和扫描器交易前置。"
+CostItemIds = Array[String](["electronic_parts", "clean_data"])
+CostItemCounts = Array[int]([6, 2])
+CostCredits = 50
+UnlockProtocolIds = Array[String](["protocol_basic_scanning"])
+IconPath = "res://assets/ui/orbit/research/research_basic_scanning_protocol.svg"

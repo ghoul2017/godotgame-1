@@ -494,6 +494,9 @@ public partial class GameRoot : Control
         AddBootstrapStack(orbitInventory, "silicon", 80);
         AddBootstrapStack(orbitInventory, "energy_cell", 80);
         AddBootstrapStack(orbitInventory, "scrap", 60);
+        AddBootstrapStack(orbitInventory, "electronic_parts", 30);
+        AddBootstrapStack(orbitInventory, "clean_data", 12);
+        AddBootstrapStack(orbitInventory, "alloy", 12);
         AddBootstrapInstance(orbitInventory, "scanner_basic_001", "scanner_basic", 100, "standard");
         AddBootstrapInstance(orbitInventory, "repair_tool_basic_001", "repair_tool_basic", 100, "standard");
         AddBootstrapInstance(orbitInventory, "rifle_basic_001", "rifle_basic", 100, "worn");
@@ -505,6 +508,17 @@ public partial class GameRoot : Control
         if (!_session.OrbitState.AwakenedUnits.Contains("unit_dexter"))
         {
             _session.OrbitState.AwakenedUnits.Add("unit_dexter");
+        }
+
+        AddAvailableMassUnit("unit_drone_scout_01");
+        AddAvailableMassUnit("unit_drone_scout_02");
+    }
+
+    private void AddAvailableMassUnit(string unitInstanceId)
+    {
+        if (!_session.OrbitState.AvailableMassUnitInstanceIds.Contains(unitInstanceId))
+        {
+            _session.OrbitState.AvailableMassUnitInstanceIds.Add(unitInstanceId);
         }
     }
 

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TradeOfferData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/TradeOfferData.cs" id="1_trade"]
+
+[resource]
+script = ExtResource("1_trade")
+Id = "trade_basic_repair_tools"
+DisplayName = "简易维修工具包"
+Category = "工具装备"
+Description = "用基础材料换取可空投的维修工具，提升地表早期维修保障。"
+CostItemIds = Array[String](["metal"])
+CostItemCounts = Array[int]([6])
+CostCredits = 25
+RewardItemIds = Array[String](["repair_tool_basic"])
+RewardItemCounts = Array[int]([1])
+IconPath = "res://assets/ui/orbit/trade/trade_basic_repair_tools.svg"

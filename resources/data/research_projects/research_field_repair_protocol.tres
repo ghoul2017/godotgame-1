@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ResearchProjectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/ResearchProjectData.cs" id="1_research"]
+
+[resource]
+script = ExtResource("1_research")
+Id = "research_field_repair_protocol"
+DisplayName = "野外维修协议"
+Category = "远征协议"
+Description = "整合维修日志和能源调度策略，解锁后续野外维修效率协议。"
+CostItemIds = Array[String](["energy_cell", "clean_data"])
+CostItemCounts = Array[int]([4, 2])
+CostCredits = 45
+UnlockProtocolIds = Array[String](["protocol_field_repair"])
+IconPath = "res://assets/ui/orbit/research/research_field_repair_protocol.svg"

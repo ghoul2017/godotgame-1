@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="TradeOfferData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/TradeOfferData.cs" id="1_trade"]
+
+[resource]
+script = ExtResource("1_trade")
+Id = "trade_basic_scanner"
+DisplayName = "简易扫描器"
+Category = "探索工具"
+Description = "购买基础扫描器，为地表资源点、废墟和特殊信号调查提供工具入口。"
+CostItemIds = Array[String](["electronic_parts"])
+CostItemCounts = Array[int]([4])
+CostCredits = 35
+RewardItemIds = Array[String](["scanner_basic"])
+RewardItemCounts = Array[int]([1])
+RequiredProtocolIds = Array[String](["protocol_basic_scanning"])
+IconPath = "res://assets/ui/orbit/trade/trade_basic_scanner.svg"

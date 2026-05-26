@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TradeOfferData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/TradeOfferData.cs" id="1_trade"]
+
+[resource]
+script = ExtResource("1_trade")
+Id = "trade_ai_chip_basic"
+DisplayName = "通用 AI 芯片"
+Category = "芯片"
+Description = "购买通用 AI 芯片，用于后续觉醒者、改装和高级单位相关系统。"
+CostItemIds = Array[String](["clean_data"])
+CostItemCounts = Array[int]([3])
+CostCredits = 90
+RewardItemIds = Array[String](["ai_chip_basic"])
+RewardItemCounts = Array[int]([1])
+IconPath = "res://assets/ui/orbit/trade/trade_ai_chip_basic.svg"

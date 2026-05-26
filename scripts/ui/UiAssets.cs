@@ -4,7 +4,7 @@ namespace GodotGame;
 
 public static class UiAssets
 {
-    public const string OrbitBackground = "res://assets/ui/backgrounds/orbit_station_background.svg";
+    public const string OrbitBackground = "res://assets/ui/orbit/backgrounds/orbit_station_command_deck.svg";
     public const string SurfaceBackground = "res://assets/ui/backgrounds/surface_expedition_background.svg";
     public const string PrologueBackground = "res://assets/ui/backgrounds/prologue_background.svg";
     public const string SummaryBackground = "res://assets/ui/backgrounds/return_summary_background.svg";
@@ -20,8 +20,31 @@ public static class UiAssets
     public const string IconCommand = "res://assets/ui/icons/surface_command.svg";
     public const string IconMinimap = "res://assets/ui/icons/surface_minimap.svg";
 
-    public const string ButtonPrimary = "res://assets/ui/buttons/button_primary.svg";
-    public const string PanelFrame = "res://assets/ui/panels/panel_frame.svg";
+    public const string OrbitCategoryAll = "res://assets/ui/orbit/categories/category_all.svg";
+    public const string OrbitCategoryResource = "res://assets/ui/orbit/categories/category_resource.svg";
+    public const string OrbitCategoryEquipment = "res://assets/ui/orbit/categories/category_equipment.svg";
+    public const string OrbitCategoryChip = "res://assets/ui/orbit/categories/category_chip.svg";
+    public const string OrbitCategoryUnitPlatform = "res://assets/ui/orbit/categories/category_unit_platform.svg";
+    public const string OrbitCategoryBlueprint = "res://assets/ui/orbit/categories/category_blueprint.svg";
+    public const string OrbitCategoryKeyItem = "res://assets/ui/orbit/categories/category_key_item.svg";
+    public const string OrbitIconCredits = "res://assets/ui/orbit/status/credits.svg";
+    public const string OrbitIconAvailable = "res://assets/ui/orbit/status/available.svg";
+    public const string OrbitIconCompleted = "res://assets/ui/orbit/status/completed.svg";
+    public const string OrbitIconInsufficient = "res://assets/ui/orbit/status/insufficient.svg";
+    public const string OrbitIconLocked = "res://assets/ui/orbit/status/locked.svg";
+    public const string OrbitAudioTabSwitch = "res://assets/audio/ui/orbit/tab_switch.wav";
+    public const string OrbitAudioSelect = "res://assets/audio/ui/orbit/list_select.wav";
+    public const string OrbitAudioSuccess = "res://assets/audio/ui/orbit/confirm_success.wav";
+    public const string OrbitAudioFailure = "res://assets/audio/ui/orbit/confirm_failure.wav";
+    public const string OrbitAudioDialogOpen = "res://assets/audio/ui/orbit/dialog_open.wav";
+    public const string OrbitAudioDialogClose = "res://assets/audio/ui/orbit/dialog_close.wav";
+
+    public const string ButtonPrimary = "res://assets/ui/orbit/buttons/button_normal.svg";
+    public const string ButtonHover = "res://assets/ui/orbit/buttons/button_hover.svg";
+    public const string ButtonPressed = "res://assets/ui/orbit/buttons/button_pressed.svg";
+    public const string ButtonDisabled = "res://assets/ui/orbit/buttons/button_disabled.svg";
+    public const string PanelFrame = "res://assets/ui/orbit/panels/orbit_panel_frame.svg";
+    public const string OrbitListRow = "res://assets/ui/orbit/panels/orbit_list_row.svg";
 
     public static Texture2D? LoadTexture(string path)
     {
@@ -83,13 +106,16 @@ public static class UiAssets
         theme.DefaultFontSize = 18;
 
         StyleBoxTexture? buttonNormal = CreateTextureStyle(ButtonPrimary, new Rect2(8, 8, 304, 56), new SideMargins(10, 10, 10, 10));
+        StyleBoxTexture? buttonHover = CreateTextureStyle(ButtonHover, new Rect2(8, 8, 304, 56), new SideMargins(10, 10, 10, 10));
+        StyleBoxTexture? buttonPressed = CreateTextureStyle(ButtonPressed, new Rect2(8, 8, 304, 56), new SideMargins(10, 10, 10, 10));
+        StyleBoxTexture? buttonDisabled = CreateTextureStyle(ButtonDisabled, new Rect2(8, 8, 304, 56), new SideMargins(10, 10, 10, 10));
         StyleBoxTexture? panelStyle = CreateTextureStyle(PanelFrame, new Rect2(16, 16, 448, 288), new SideMargins(14, 14, 14, 14));
         if (buttonNormal is not null)
         {
             theme.SetStylebox("normal", "Button", buttonNormal);
-            theme.SetStylebox("hover", "Button", buttonNormal);
-            theme.SetStylebox("pressed", "Button", buttonNormal);
-            theme.SetStylebox("disabled", "Button", buttonNormal);
+            theme.SetStylebox("hover", "Button", buttonHover ?? buttonNormal);
+            theme.SetStylebox("pressed", "Button", buttonPressed ?? buttonNormal);
+            theme.SetStylebox("disabled", "Button", buttonDisabled ?? buttonNormal);
         }
 
         if (panelStyle is not null)
@@ -102,6 +128,11 @@ public static class UiAssets
         theme.SetColor("font_pressed_color", "Button", new Color(0.65f, 0.82f, 0.78f));
         theme.SetColor("font_disabled_color", "Button", new Color(0.45f, 0.5f, 0.48f));
         return theme;
+    }
+
+    public static StyleBoxTexture? CreateTextureStyleBox(string path, Rect2 region, float margin)
+    {
+        return CreateTextureStyle(path, region, new SideMargins(margin, margin, margin, margin));
     }
 
     private static StyleBoxTexture? CreateTextureStyle(string path, Rect2 region, SideMargins margins)

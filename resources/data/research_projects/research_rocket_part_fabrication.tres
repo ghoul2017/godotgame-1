@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ResearchProjectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/ResearchProjectData.cs" id="1_research"]
+
+[resource]
+script = ExtResource("1_research")
+Id = "research_rocket_part_fabrication"
+DisplayName = "火箭部件制造"
+Category = "火箭工程"
+Description = "建立地表火箭部件的制造规范，解锁后续火箭制造配方蓝图。"
+CostItemIds = Array[String](["alloy", "electronic_parts", "clean_data"])
+CostItemCounts = Array[int]([8, 8, 3])
+CostCredits = 80
+RequiredResearchIds = Array[String](["research_basic_assembly"])
+UnlockBlueprintIds = Array[String](["blueprint_rocket_part_fabrication"])
+IconPath = "res://assets/ui/orbit/research/research_rocket_part_fabrication.svg"

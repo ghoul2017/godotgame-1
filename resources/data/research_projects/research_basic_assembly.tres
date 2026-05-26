@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ResearchProjectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/ResearchProjectData.cs" id="1_research"]
+
+[resource]
+script = ExtResource("1_research")
+Id = "research_basic_assembly"
+DisplayName = "基础组装工艺"
+Category = "建造生产"
+Description = "整理旧世界组装机资料，解锁地表基础组装机的正式建造蓝图。"
+CostItemIds = Array[String](["metal", "electronic_parts"])
+CostItemCounts = Array[int]([20, 4])
+CostCredits = 30
+UnlockBlueprintIds = Array[String](["blueprint_assembler_basic"])
+IconPath = "res://assets/ui/orbit/research/research_basic_assembly.svg"

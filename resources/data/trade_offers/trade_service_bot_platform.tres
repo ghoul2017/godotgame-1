@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TradeOfferData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/TradeOfferData.cs" id="1_trade"]
+
+[resource]
+script = ExtResource("1_trade")
+Id = "trade_service_bot_platform"
+DisplayName = "服务型平台机体"
+Category = "单位平台"
+Description = "购买服务型量产机器人平台，后续可在空投配置中转化为远征单位。"
+CostItemIds = Array[String](["metal", "electronic_parts"])
+CostItemCounts = Array[int]([18, 6])
+CostCredits = 60
+RewardItemIds = Array[String](["service_bot_platform"])
+RewardItemCounts = Array[int]([1])
+IconPath = "res://assets/ui/orbit/trade/trade_service_bot_platform.svg"

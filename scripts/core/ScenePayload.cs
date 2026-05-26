@@ -1,5 +1,3 @@
-using Godot;
-
 namespace GodotGame;
 
 public sealed class ScenePayload
@@ -7,7 +5,6 @@ public sealed class ScenePayload
     public string FromScene { get; set; } = string.Empty;
     public string TargetScene { get; set; } = string.Empty;
     public string PayloadType { get; set; } = string.Empty;
-    public Godot.Collections.Dictionary<string, Variant> Data { get; } = new();
     public NavigationPayloadData? NavigationData { get; set; }
     public ExpeditionStartPayloadData? ExpeditionStartData { get; set; }
     public ReturnSummaryPayloadData? ReturnSummaryData { get; set; }

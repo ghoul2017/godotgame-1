@@ -16,4 +16,5 @@ public sealed class SaveGame
     public Dictionary<string, BuildingInstance> BuildingInstances => GameSession.BuildingInstances;
     public Dictionary<string, InventoryContainer> Inventories => GameSession.Inventories;
     public List<InventoryTransfer> InventoryTransfers => GameSession.InventoryTransfers;
+    public List<OrbitTransactionRecord> OrbitTransactionRecords => GameSession.OrbitTransactionRecords;
 }

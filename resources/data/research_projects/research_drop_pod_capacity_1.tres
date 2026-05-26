@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ResearchProjectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/ResearchProjectData.cs" id="1_research"]
+
+[resource]
+script = ExtResource("1_research")
+Id = "research_drop_pod_capacity_1"
+DisplayName = "空投舱载荷审计 I"
+Category = "空投能力"
+Description = "优化空投舱载荷审计和结构加固规则，作为后续容量改进的正式入口。"
+CostItemIds = Array[String](["alloy", "energy_cell", "clean_data"])
+CostItemCounts = Array[int]([6, 8, 4])
+CostCredits = 100
+RequiredResearchIds = Array[String](["research_basic_scanning_protocol"])
+UnlockBlueprintIds = Array[String](["blueprint_drop_pod_capacity_1"])
+UnlockProtocolIds = Array[String](["protocol_drop_mass_audit_1"])
+IconPath = "res://assets/ui/orbit/research/research_drop_pod_capacity_1.svg"

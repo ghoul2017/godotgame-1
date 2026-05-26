@@ -18,6 +18,7 @@ public sealed class SaveGameService
         ValidateDropPlans(saveGame, registry, report);
         ValidateActiveExpedition(saveGame, registry, report);
         ValidateRunRecords(saveGame, report);
+        ValidateOrbitTransactions(saveGame, registry, report);
         ValidateInstanceOwnership(saveGame, report);
         return report;
     }
@@ -196,6 +197,46 @@ public sealed class SaveGameService
                 if (saveGame.InventoryTransfers.All(transfer => transfer.TransferId != transferId))
                 {
                     report.Add(DefinitionStatus.RecoverableError, $"轮次记录 {record.RunRecordId} 引用缺失转移记录：{transferId}");
+                }
+            }
+        }
+    }
+
+    private static void ValidateOrbitTransactions(SaveGame saveGame, DataRegistry registry, DataLoadReport report)
+    {
+        foreach (OrbitTransactionRecord record in saveGame.OrbitTransactionRecords)
+        {
+            if (record.TransactionType is not ("trade" or "research"))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"轨道审计记录 {record.TransactionId} 类型非法：{record.TransactionType}");
+            }
+
+            foreach (ItemStack stack in record.CostItems.Concat(record.RewardItems))
+            {
+                if (stack.Count <= 0)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"轨道审计记录 {record.TransactionId} 存在非法数量：{stack.ItemId}");
+                }
+
+                if (!registry.TryGetItem(stack.ItemId, out ItemData? itemData) || itemData is null)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"轨道审计记录 {record.TransactionId} 引用缺失道具：{stack.ItemId}");
+                }
+            }
+
+            foreach (string transferId in record.RelatedTransferIds)
+            {
+                if (saveGame.InventoryTransfers.All(transfer => transfer.TransferId != transferId))
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"轨道审计记录 {record.TransactionId} 引用缺失转移记录：{transferId}");
+                }
+            }
+
+            foreach (string itemInstanceId in record.RewardItemInstanceIds)
+            {
+                if (!saveGame.ItemInstances.ContainsKey(itemInstanceId))
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"轨道审计记录 {record.TransactionId} 引用缺失奖励实例：{itemInstanceId}");
                 }
             }
         }

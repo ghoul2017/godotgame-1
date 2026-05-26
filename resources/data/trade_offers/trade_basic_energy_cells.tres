@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="TradeOfferData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit/TradeOfferData.cs" id="1_trade"]
+
+[resource]
+script = ExtResource("1_trade")
+Id = "trade_basic_energy_cells"
+DisplayName = "能源块补给"
+Category = "资源补给"
+Description = "从轨道补给商购买稳定能源块，用于空投准备、地表生产和火箭制造。"
+CostCredits = 40
+RewardItemIds = Array[String](["energy_cell"])
+RewardItemCounts = Array[int]([8])
+IconPath = "res://assets/ui/orbit/trade/trade_basic_energy_cells.svg"
