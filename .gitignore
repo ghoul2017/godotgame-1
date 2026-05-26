@@ -5,6 +5,7 @@
 
 # IDE/user-local files
 .idea/
+*.sln.DotSettings.user
 
 # .NET build outputs
 bin/

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 namespace GodotGame;
@@ -176,15 +177,39 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
         }
 
         OrbitState orbitState = gameRoot.Session.OrbitState;
-        if (orbitState.Inventory.Count == 0 && orbitState.StoredChipIds.Count == 0 && orbitState.UnlockedBlueprints.Count == 0)
+        InventoryContainer? orbitInventory = gameRoot.Session.Inventories.GetValueOrDefault(orbitState.InventoryId);
+        bool emptyUnifiedInventory = orbitInventory is null || orbitInventory.ItemStacks.Count == 0;
+        if (emptyUnifiedInventory && orbitState.Inventory.Count == 0 && orbitState.StoredChipIds.Count == 0 && orbitState.UnlockedBlueprints.Count == 0)
         {
             return "轨道永久库存当前为空。回归结算写入后会在这里显示正式库存条目。";
         }
 
         System.Collections.Generic.List<string> lines = new();
+        if (orbitInventory is not null)
+        {
+            lines.Add($"统一库存：{orbitInventory.InventoryId}  重量 {orbitInventory.GetTotalWeight(gameRoot.DataRegistry, gameRoot.Session.ItemInstances):0.0}/{orbitInventory.WeightLimit:0.0}");
+            foreach (ItemStack stack in orbitInventory.ItemStacks)
+            {
+                lines.Add($"{gameRoot.DataRegistry.GetItemName(stack.ItemId)} x{stack.Count}");
+            }
+
+            foreach (string itemInstanceId in orbitInventory.ItemInstanceIds)
+            {
+                if (gameRoot.Session.ItemInstances.TryGetValue(itemInstanceId, out ItemInstance? instance))
+                {
+                    lines.Add($"{gameRoot.DataRegistry.GetItemName(instance.ItemId)} [{itemInstanceId}]");
+                }
+            }
+        }
+
         foreach (System.Collections.Generic.KeyValuePair<string, int> item in orbitState.Inventory)
         {
-            lines.Add($"{item.Key} x{item.Value}");
+            if (orbitInventory is not null)
+            {
+                continue;
+            }
+
+            lines.Add($"{gameRoot.DataRegistry.GetItemName(item.Key)} x{item.Value}");
         }
 
         foreach (string chipId in orbitState.StoredChipIds)

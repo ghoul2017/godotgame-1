@@ -57,7 +57,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         {
             string units = expeditionData.InitialUnits.Count == 0 ? "无" : string.Join("  ", expeditionData.InitialUnits.ConvertAll(unit => $"{unit.UnitId} x{unit.Count} [{unit.ConfigId}]"));
             string items = expeditionData.InitialItems.Count == 0 ? "无" : string.Join("  ", expeditionData.InitialItems.ConvertAll(item => $"{item.ItemId} x{item.Count}"));
-            _manifestLabel.Text = $"初始单位：{units}\n携带物资：{items}";
+            _manifestLabel.Text = $"空投计划：{expeditionData.DropPlanId}\n空投库存：{expeditionData.DropPodCargoInventoryId}\n初始单位：{units}\n携带物资：{items}";
         }
 
         GD.Print($"[远征] 进入地表远征，种子：{payload.Seed}");
@@ -191,6 +191,17 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
                 return;
             }
 
+            ExpeditionState? expeditionState = gameRoot.Session.ActiveExpedition;
+            if (!(_payload?.DebugEnabled ?? false) &&
+                (expeditionState is null ||
+                 !expeditionState.RocketState.IsReadyToReturn ||
+                 !expeditionState.RocketState.LaunchConfirmed ||
+                 string.IsNullOrEmpty(expeditionState.RocketState.CargoInventoryId)))
+            {
+                GD.PushWarning("[结算] 火箭尚未完成装载和发射确认，不能回归");
+                return;
+            }
+
             ScenePayload returnPayload = CreateReturnPayload(gameRoot);
             gameRoot.NavigateTo(SceneId.ReturnSummary, returnPayload);
         });
@@ -243,11 +254,20 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             summaryData.ExpeditionId = expeditionState.ExpeditionId;
             summaryData.BroughtItems.AddRange(expeditionState.InitialItems);
             summaryData.ReturnCargo.AddRange(expeditionState.RocketState.CargoItems);
+            summaryData.ReturnedItemInstanceIds.AddRange(expeditionState.RocketState.ReturningItemInstanceIds);
             summaryData.ReturnedAwakenedUnitIds.AddRange(expeditionState.RocketState.ReturningAwakenedUnitIds);
             summaryData.ReturnedChipIds.AddRange(expeditionState.RocketState.ReturningChipIds);
             summaryData.ReturnedBlueprintIds.AddRange(expeditionState.RocketState.ReturningBlueprintIds);
             summaryData.LeftSurfaceAssetIds.AddRange(expeditionState.MapState.LeftAssetIds);
             summaryData.DiscoveredIds.AddRange(expeditionState.RocketState.ReturningBlueprintIds);
+            summaryData.DiscoveredIds.AddRange(expeditionState.DiscoveredIds);
+            foreach (InventoryTransfer transfer in gameRoot.Session.InventoryTransfers)
+            {
+                if (transfer.ExpeditionId == expeditionState.ExpeditionId && transfer.Reason == "rocket_cargo_load")
+                {
+                    summaryData.RelatedTransferIds.Add(transfer.TransferId);
+                }
+            }
         }
 
         returnPayload.ReturnSummaryData = summaryData;
