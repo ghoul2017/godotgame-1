@@ -11,12 +11,124 @@ config_version=5
 [application]
 
 config/name="godotgame1"
-config/features=PackedStringArray("4.6", "Forward Plus")
+run/main_scene="res://scenes/main/game_root.tscn"
+config/features=PackedStringArray("4.6", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
 [dotnet]
 
 project/assembly_name="godotgame1"
+
+[input]
+
+select_primary={
+"deadzone": 0.5,
+"events": []
+}
+command_context={
+"deadzone": 0.5,
+"events": []
+}
+drag_select={
+"deadzone": 0.5,
+"events": []
+}
+camera_pan_mouse={
+"deadzone": 0.5,
+"events": []
+}
+group_1={
+"deadzone": 0.5,
+"events": []
+}
+group_2={
+"deadzone": 0.5,
+"events": []
+}
+group_3={
+"deadzone": 0.5,
+"events": []
+}
+group_4={
+"deadzone": 0.5,
+"events": []
+}
+group_5={
+"deadzone": 0.5,
+"events": []
+}
+group_6={
+"deadzone": 0.5,
+"events": []
+}
+group_7={
+"deadzone": 0.5,
+"events": []
+}
+group_8={
+"deadzone": 0.5,
+"events": []
+}
+group_9={
+"deadzone": 0.5,
+"events": []
+}
+assign_group={
+"deadzone": 0.5,
+"events": []
+}
+open_build_menu={
+"deadzone": 0.5,
+"events": []
+}
+open_inventory={
+"deadzone": 0.5,
+"events": []
+}
+open_map={
+"deadzone": 0.5,
+"events": []
+}
+open_character_panel={
+"deadzone": 0.5,
+"events": []
+}
+toggle_behavior_panel={
+"deadzone": 0.5,
+"events": []
+}
+cancel_action={
+"deadzone": 0.5,
+"events": []
+}
+confirm_action={
+"deadzone": 0.5,
+"events": []
+}
+camera_move_up={
+"deadzone": 0.5,
+"events": []
+}
+camera_move_down={
+"deadzone": 0.5,
+"events": []
+}
+camera_move_left={
+"deadzone": 0.5,
+"events": []
+}
+camera_move_right={
+"deadzone": 0.5,
+"events": []
+}
+camera_zoom_in={
+"deadzone": 0.5,
+"events": []
+}
+camera_zoom_out={
+"deadzone": 0.5,
+"events": []
+}
 
 [physics]
 
