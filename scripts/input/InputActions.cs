@@ -16,7 +16,11 @@ public static class InputActions
             AddKeyAction($"group_{index}", Key.Key0 + index);
         }
 
-        AddKeyAction("assign_group", Key.Ctrl);
+        for (int index = 1; index <= 9; index++)
+        {
+            AddModifiedKeyAction("assign_group", Key.Key0 + index, ctrlPressed: true);
+        }
+
         AddKeyAction("open_build_menu", Key.B);
         AddKeyAction("open_inventory", Key.I);
         AddKeyAction("open_map", Key.M);
@@ -56,6 +60,18 @@ public static class InputActions
         InputEventMouseButton inputEvent = new()
         {
             ButtonIndex = button
+        };
+
+        AddEventIfMissing(actionName, inputEvent);
+    }
+
+    private static void AddModifiedKeyAction(string actionName, Key key, bool ctrlPressed)
+    {
+        EnsureAction(actionName);
+        InputEventKey inputEvent = new()
+        {
+            Keycode = key,
+            CtrlPressed = ctrlPressed
         };
 
         AddEventIfMissing(actionName, inputEvent);

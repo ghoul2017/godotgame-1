@@ -4,6 +4,9 @@ namespace GodotGame;
 
 public partial class OrbitStation : Control, ScenePayloadReceiver
 {
+    [Signal]
+    public delegate void PageChangedEventHandler(string pageId);
+
     private Label? _pageTitle;
     private Label? _payloadLabel;
 
@@ -37,6 +40,7 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
         }
 
         GD.Print($"[轨道] 打开页面：{pageId}");
+        EmitSignal(SignalName.PageChanged, pageId);
     }
 
     private void BuildUi()

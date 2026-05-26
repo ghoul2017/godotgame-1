@@ -6,9 +6,13 @@ public partial class GameRoot : Control
 {
     private readonly DebugLauncher _debugLauncher = new();
     private GameSession _session = new();
+    private readonly InputIntentController _inputIntentController = new();
     private SceneRouter? _sceneRouter;
     private Control? _mainMenu;
     private Node? _sceneContainer;
+
+    public GameSession Session => _session;
+    public InputIntentController InputIntentController => _inputIntentController;
 
     public override void _Ready()
     {
@@ -21,7 +25,10 @@ public partial class GameRoot : Control
         if (_debugLauncher.IsDebugEnabled() && !string.IsNullOrEmpty(debugScene))
         {
             GD.Print($"[调试] 使用启动参数进入场景：{debugScene}");
-            NavigateTo(debugScene, CreateDefaultPayload(SceneId.Main, debugScene, true));
+            ScenePayload payload = debugScene == SceneId.SurfaceExpedition || debugScene == SceneId.ReturnSummary
+                ? CreateDefaultPayload(SceneId.Main, debugScene, true)
+                : CreateNavigationPayload(SceneId.Main, debugScene, true);
+            NavigateTo(debugScene, payload);
             return;
         }
 
@@ -42,6 +49,18 @@ public partial class GameRoot : Control
         payload.TargetScene = targetScene;
         _session.CurrentState = targetScene;
         _sceneRouter!.ChangeScene(targetScene, payload);
+    }
+
+    public ScenePayload CreateNavigationPayload(string fromScene, string targetScene, bool debugEnabled = false)
+    {
+        return new ScenePayload
+        {
+            FromScene = fromScene,
+            TargetScene = targetScene,
+            PayloadType = "navigation",
+            DebugEnabled = debugEnabled,
+            Seed = debugEnabled ? _debugLauncher.GetSeed() : 0
+        };
     }
 
     public ScenePayload CreateDefaultPayload(string fromScene, string targetScene, bool debugEnabled = false)
@@ -143,8 +162,36 @@ public partial class GameRoot : Control
         {
             Text = text
         };
-        button.Pressed += () => NavigateTo(targetScene, CreateDefaultPayload(SceneId.Main, targetScene, debugEnabled));
+        button.Pressed += () =>
+        {
+            ScenePayload payload = targetScene == SceneId.SurfaceExpedition || targetScene == SceneId.ReturnSummary
+                ? CreateDefaultPayload(SceneId.Main, targetScene, debugEnabled)
+                : CreateNavigationPayload(SceneId.Main, targetScene, debugEnabled);
+            NavigateTo(targetScene, payload);
+        };
         menu.AddChild(button);
+    }
+
+    public void ApplyReturnSummary(ScenePayload payload)
+    {
+        RunRecord record = new()
+        {
+            ExpeditionId = payload.Data.TryGetValue("expedition_id", out Variant expeditionId) ? expeditionId.AsString() : string.Empty,
+            Seed = payload.Seed
+        };
+        record.ReturnedItems.AddRange(payload.ReturnCargo);
+        record.LostUnits.AddRange(payload.LostUnits);
+        record.DiscoveredIds.AddRange(payload.DiscoveredIds);
+
+        foreach (ItemStack item in record.ReturnedItems)
+        {
+            _session.OrbitState.Inventory.TryGetValue(item.ItemId, out int currentCount);
+            _session.OrbitState.Inventory[item.ItemId] = currentCount + item.Count;
+        }
+
+        _session.RunRecords.Add(record);
+        _session.ActiveExpedition = null;
+        GD.Print($"[结算] 回归结果已写入轨道库存：{record.ExpeditionId}");
     }
 
     private void ClearSceneContainer()

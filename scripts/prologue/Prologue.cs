@@ -50,7 +50,7 @@ public partial class Prologue : Control, ScenePayloadReceiver
         orbitButton.Pressed += () =>
         {
             GameRoot? gameRoot = FindGameRoot();
-            gameRoot?.NavigateTo(SceneId.OrbitStation, gameRoot.CreateDefaultPayload(SceneId.Prologue, SceneId.OrbitStation));
+            gameRoot?.NavigateTo(SceneId.OrbitStation, gameRoot.CreateNavigationPayload(SceneId.Prologue, SceneId.OrbitStation));
         };
         root.AddChild(orbitButton);
 

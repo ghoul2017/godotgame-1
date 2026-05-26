@@ -5,6 +5,38 @@ namespace GodotGame;
 public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 {
     private Label? _statusLabel;
+    private ScenePayload? _payload;
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        InputIntentController? inputController = FindGameRoot()?.InputIntentController;
+        if (inputController is null)
+        {
+            return;
+        }
+
+        InputIntentController.SurfaceIntent intent = inputController.GetSurfaceIntent(@event);
+        if (intent == InputIntentController.SurfaceIntent.SelectPrimary)
+        {
+            GD.Print("[输入] 地表选择意图");
+            GetViewport().SetInputAsHandled();
+        }
+        else if (intent == InputIntentController.SurfaceIntent.CommandContext)
+        {
+            GD.Print("[输入] 地表上下文指令意图");
+            GetViewport().SetInputAsHandled();
+        }
+        else if (intent == InputIntentController.SurfaceIntent.Cancel)
+        {
+            GD.Print("[输入] 地表取消意图");
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        FindGameRoot()?.InputIntentController.SetUiBlocked(false);
+    }
 
     public override void _Ready()
     {
@@ -13,6 +45,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
     public void ReceivePayload(ScenePayload payload)
     {
+        _payload = payload;
         if (_statusLabel is not null)
         {
             string expeditionId = payload.Data.TryGetValue("expedition_id", out Variant id) ? id.AsString() : "unknown";
@@ -24,6 +57,30 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
     private void BuildUi()
     {
+        Node2D mapLayer = new()
+        {
+            Name = "MapLayer"
+        };
+        AddChild(mapLayer);
+
+        Node2D unitLayer = new()
+        {
+            Name = "UnitLayer"
+        };
+        AddChild(unitLayer);
+
+        Node2D buildingLayer = new()
+        {
+            Name = "BuildingLayer"
+        };
+        AddChild(buildingLayer);
+
+        Node2D effectLayer = new()
+        {
+            Name = "ProjectileEffectLayer"
+        };
+        AddChild(effectLayer);
+
         CanvasLayer uiLayer = new()
         {
             Name = "SurfaceUi"
@@ -42,6 +99,8 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             Name = "StatusPanel"
         };
         panel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        panel.MouseEntered += () => FindGameRoot()?.InputIntentController.SetUiBlocked(true);
+        panel.MouseExited += () => FindGameRoot()?.InputIntentController.SetUiBlocked(false);
         root.AddChild(panel);
 
         _statusLabel = new Label
@@ -50,11 +109,35 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         };
         panel.AddChild(_statusLabel);
 
-        Label layoutHint = new()
+        Label resourceBar = new()
         {
-            Text = "UI 壳层：资源栏 / 小地图 / 单位面板 / 命令区"
+            Text = "资源栏"
         };
-        panel.AddChild(layoutHint);
+        panel.AddChild(resourceBar);
+
+        Label minimap = new()
+        {
+            Text = "小地图"
+        };
+        panel.AddChild(minimap);
+
+        Label selectionPanel = new()
+        {
+            Text = "单位 / 建筑信息"
+        };
+        panel.AddChild(selectionPanel);
+
+        Label commandPanel = new()
+        {
+            Text = "命令区"
+        };
+        panel.AddChild(commandPanel);
+
+        Label messagePanel = new()
+        {
+            Text = "消息和事件"
+        };
+        panel.AddChild(messagePanel);
 
         Button returnButton = new()
         {
@@ -63,7 +146,13 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         returnButton.Pressed += () =>
         {
             GameRoot? gameRoot = FindGameRoot();
-            gameRoot?.NavigateTo(SceneId.ReturnSummary, gameRoot.CreateDefaultPayload(SceneId.SurfaceExpedition, SceneId.ReturnSummary));
+            if (gameRoot is null)
+            {
+                return;
+            }
+
+            ScenePayload returnPayload = CreateReturnPayload(gameRoot);
+            gameRoot.NavigateTo(SceneId.ReturnSummary, returnPayload);
         };
         panel.AddChild(returnButton);
 
@@ -73,6 +162,35 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         };
         backButton.Pressed += () => FindGameRoot()?.ShowMainMenu();
         panel.AddChild(backButton);
+
+        CanvasLayer debugLayer = new()
+        {
+            Name = "DebugOverlay"
+        };
+        AddChild(debugLayer);
+    }
+
+    private ScenePayload CreateReturnPayload(GameRoot gameRoot)
+    {
+        ScenePayload payload = _payload ?? gameRoot.CreateDefaultPayload(SceneId.SurfaceExpedition, SceneId.ReturnSummary);
+        ScenePayload returnPayload = new()
+        {
+            FromScene = SceneId.SurfaceExpedition,
+            TargetScene = SceneId.ReturnSummary,
+            PayloadType = "surface_return_summary",
+            DebugEnabled = payload.DebugEnabled,
+            Seed = payload.Seed
+        };
+
+        if (payload.Data.TryGetValue("expedition_id", out Variant expeditionId))
+        {
+            returnPayload.Data["expedition_id"] = expeditionId;
+        }
+
+        returnPayload.ReturnCargo.Add(new ItemStack { ItemId = "metal", Count = 25 });
+        returnPayload.ReturnCargo.Add(new ItemStack { ItemId = "energy_cell", Count = 10 });
+        returnPayload.DiscoveredIds.Add("blueprint_basic_rocket_pad");
+        return returnPayload;
     }
 
     private GameRoot? FindGameRoot()
