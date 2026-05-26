@@ -10,8 +10,7 @@ public sealed class SceneRouter
     {
         [SceneId.OrbitStation] = "res://scenes/orbit/orbit_station.tscn",
         [SceneId.SurfaceExpedition] = "res://scenes/surface/surface_expedition.tscn",
-        [SceneId.ReturnSummary] = "res://scenes/summary/return_summary.tscn",
-        [SceneId.Prologue] = "res://scenes/prologue/prologue.tscn"
+        [SceneId.ReturnSummary] = "res://scenes/summary/return_summary.tscn"
     };
 
     public SceneRouter(Node sceneContainer)

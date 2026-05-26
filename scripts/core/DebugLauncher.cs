@@ -17,7 +17,6 @@ public sealed class DebugLauncher
             SceneId.OrbitStation => SceneId.OrbitStation,
             SceneId.SurfaceExpedition => SceneId.SurfaceExpedition,
             SceneId.ReturnSummary => SceneId.ReturnSummary,
-            SceneId.Prologue => SceneId.Prologue,
             _ => string.Empty
         };
     }
@@ -32,12 +31,6 @@ public sealed class DebugLauncher
     {
         string page = GetArgumentValue("--orbit-page");
         return string.IsNullOrWhiteSpace(page) ? "inventory" : page;
-    }
-
-    public string GetPrologueNode()
-    {
-        string node = GetArgumentValue("--prologue-node");
-        return string.IsNullOrWhiteSpace(node) ? "opening" : node;
     }
 
     private static bool HasArgument(string key)

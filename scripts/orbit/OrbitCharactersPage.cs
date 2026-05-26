@@ -89,13 +89,13 @@ public partial class OrbitStation
             rows.Add(new OrbitInfoRow(
                 "locked:rockbreaker",
                 "碎石",
-                "觉醒者线索  剧情未加入  来源：序章与地表回归",
+                "觉醒者线索  剧情未加入  来源：后续剧情与地表回归",
                 rockbreaker.PortraitPath,
                 string.Join("\n", new[]
                 {
                     rockbreaker.Description,
                     "当前状态：锁定",
-                    "来源条件：序章或后续远征回归写入觉醒者实例后解锁。",
+                    "来源条件：后续剧情或远征回归写入觉醒者实例后解锁。",
                     "此卡片不伪造可用角色，只保留正式角色入口。"
                 })));
         }

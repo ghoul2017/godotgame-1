@@ -12,6 +12,7 @@ public partial class GameRoot : Control
     private SceneRouter? _sceneRouter;
     private Control? _mainMenu;
     private Button? _continueButton;
+    private Label? _mainMenuStatus;
     private Node? _sceneContainer;
 
     public GameSession Session => _session;
@@ -54,11 +55,6 @@ public partial class GameRoot : Control
             {
                 payload.NavigationData ??= new NavigationPayloadData();
                 payload.NavigationData.OrbitPageId = _debugLauncher.GetOrbitPage();
-            }
-            else if (debugScene == SceneId.Prologue)
-            {
-                payload.NavigationData ??= new NavigationPayloadData();
-                payload.NavigationData.PrologueNodeId = _debugLauncher.GetPrologueNode();
             }
 
             NavigateTo(debugScene, payload);
@@ -267,19 +263,32 @@ public partial class GameRoot : Control
         };
         menu.AddChild(title);
 
-        AddMenuButton(menu, "开始序章", SceneId.Prologue, false);
-        AddMenuButton(menu, "进入轨道站", SceneId.OrbitStation, false);
-
         _continueButton = new Button
         {
-            Text = _session.RunRecords.Count == 0 ? "继续当前存档（无可继续记录）" : "继续当前存档",
-            Disabled = _session.RunRecords.Count == 0
+            Text = "继续游戏",
+            Disabled = _session.RunRecords.Count == 0,
+            TooltipText = _session.RunRecords.Count == 0 ? "暂无可继续的存档记录" : "读取最近存档"
         };
         _continueButton.Pressed += () => NavigateTo(SceneId.OrbitStation, CreateNavigationPayload(SceneId.Main, SceneId.OrbitStation));
         menu.AddChild(_continueButton);
 
+        Button newGameButton = new()
+        {
+            Text = "新游戏"
+        };
+        newGameButton.Pressed += StartNewGame;
+        menu.AddChild(newGameButton);
+
+        Button settingsButton = new()
+        {
+            Text = "设置"
+        };
+        settingsButton.Pressed += () => ShowMainMenuStatus("设置界面尚未接入。");
+        menu.AddChild(settingsButton);
+
         if (_debugLauncher.IsDebugEnabled())
         {
+            AddMenuButton(menu, "调试：轨道站", SceneId.OrbitStation, true);
             AddMenuButton(menu, "调试：进入地表远征", SceneId.SurfaceExpedition, true);
             AddMenuButton(menu, "调试：打开回归结算", SceneId.ReturnSummary, true);
         }
@@ -291,6 +300,14 @@ public partial class GameRoot : Control
         quitButton.Pressed += () => GetTree().Quit();
         menu.AddChild(quitButton);
 
+        _mainMenuStatus = new Label
+        {
+            Text = string.Empty,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart
+        };
+        menu.AddChild(_mainMenuStatus);
+
         return panel;
     }
 
@@ -301,8 +318,28 @@ public partial class GameRoot : Control
             return;
         }
 
-        _continueButton.Text = _session.RunRecords.Count == 0 ? "继续当前存档（无可继续记录）" : "继续当前存档";
+        _continueButton.Text = "继续游戏";
         _continueButton.Disabled = _session.RunRecords.Count == 0;
+        _continueButton.TooltipText = _session.RunRecords.Count == 0 ? "暂无可继续的存档记录" : "读取最近存档";
+    }
+
+    private void StartNewGame()
+    {
+        ClearSceneContainer();
+        _session = new GameSession();
+        BootstrapSessionData();
+        _session.CurrentState = "new_game_pending";
+        RefreshContinueButton();
+        ShowMainMenuStatus("新游戏正式流程尚未接入，已创建新的运行会话。");
+        GD.Print("[主入口] 新游戏会话已创建，正式流程尚未接入");
+    }
+
+    private void ShowMainMenuStatus(string message)
+    {
+        if (_mainMenuStatus is not null)
+        {
+            _mainMenuStatus.Text = message;
+        }
     }
 
     private void AddMenuButton(VBoxContainer menu, string text, string targetScene, bool debugEnabled)

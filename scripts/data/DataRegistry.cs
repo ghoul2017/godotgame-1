@@ -153,7 +153,7 @@ public sealed class DataRegistry
         {
             Id = "drop_pod_single_use",
             DisplayName = "单程空投舱",
-            Description = "序章阶段使用的单程投送舱，载重有限但能稳定投放觉醒者和少量物资。",
+            Description = "早期远征使用的单程投送舱，载重有限但能稳定投放觉醒者和少量物资。",
             WeightLimit = 90f,
             SlotLimit = 18,
             UnitCapacity = 4,

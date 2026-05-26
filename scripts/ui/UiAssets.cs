@@ -6,7 +6,6 @@ public static class UiAssets
 {
     public const string OrbitBackground = "res://assets/ui/orbit/backgrounds/orbit_station_command_deck.svg";
     public const string SurfaceBackground = "res://assets/ui/backgrounds/surface_expedition_background.svg";
-    public const string PrologueBackground = "res://assets/ui/backgrounds/prologue_background.svg";
     public const string SummaryBackground = "res://assets/ui/backgrounds/return_summary_background.svg";
 
     public const string IconInventory = "res://assets/ui/icons/tab_inventory.svg";
