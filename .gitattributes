@@ -1,2 +1,2 @@
-# Normalize EOL for all files that Git considers text files.
-* text=auto eol=lf
+# Let Git normalize text files and use the local checkout line ending policy.
+* text=auto
