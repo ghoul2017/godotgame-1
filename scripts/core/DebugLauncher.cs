@@ -6,7 +6,7 @@ public sealed class DebugLauncher
 {
     public bool IsDebugEnabled()
     {
-        return OS.HasFeature("editor") || HasArgument("--debug-scene");
+        return HasArgument("--debug") || HasArgument("--debug-scene") || OS.GetEnvironment("GODOTGAME_DEBUG") == "1";
     }
 
     public string GetStartupScene()
@@ -26,6 +26,18 @@ public sealed class DebugLauncher
     {
         string seedText = GetArgumentValue("--seed");
         return int.TryParse(seedText, out int seed) ? seed : 460001;
+    }
+
+    public string GetOrbitPage()
+    {
+        string page = GetArgumentValue("--orbit-page");
+        return string.IsNullOrWhiteSpace(page) ? "inventory" : page;
+    }
+
+    public string GetPrologueNode()
+    {
+        string node = GetArgumentValue("--prologue-node");
+        return string.IsNullOrWhiteSpace(node) ? "opening" : node;
     }
 
     private static bool HasArgument(string key)

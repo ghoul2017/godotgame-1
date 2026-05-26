@@ -5,6 +5,7 @@ namespace GodotGame;
 public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 {
     private Label? _statusLabel;
+    private Label? _manifestLabel;
     private ScenePayload? _payload;
 
     public override void _UnhandledInput(InputEvent @event)
@@ -46,10 +47,17 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     public void ReceivePayload(ScenePayload payload)
     {
         _payload = payload;
-        if (_statusLabel is not null)
+        ExpeditionStartPayloadData? expeditionData = payload.ExpeditionStartData;
+        if (_statusLabel is not null && expeditionData is not null)
         {
-            string expeditionId = payload.Data.TryGetValue("expedition_id", out Variant id) ? id.AsString() : "unknown";
-            _statusLabel.Text = $"地表远征\n远征：{expeditionId}\n种子：{payload.Seed}";
+            _statusLabel.Text = $"远征 {expeditionData.ExpeditionId}  |  种子 {expeditionData.Seed}  |  空投坐标 {expeditionData.DropPosition.X},{expeditionData.DropPosition.Y}";
+        }
+
+        if (_manifestLabel is not null && expeditionData is not null)
+        {
+            string units = expeditionData.InitialUnits.Count == 0 ? "无" : string.Join("  ", expeditionData.InitialUnits.ConvertAll(unit => $"{unit.UnitId} x{unit.Count} [{unit.ConfigId}]"));
+            string items = expeditionData.InitialItems.Count == 0 ? "无" : string.Join("  ", expeditionData.InitialItems.ConvertAll(item => $"{item.ItemId} x{item.Count}"));
+            _manifestLabel.Text = $"初始单位：{units}\n携带物资：{items}";
         }
 
         GD.Print($"[远征] 进入地表远征，种子：{payload.Seed}");
@@ -87,6 +95,10 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         };
         AddChild(uiLayer);
 
+        TextureRect background = UiAssets.CreateTextureRect("SurfaceBackground", UiAssets.SurfaceBackground);
+        background.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        uiLayer.AddChild(background);
+
         Control root = new()
         {
             Name = "SurfaceLayout"
@@ -94,56 +106,84 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         uiLayer.AddChild(root);
 
-        VBoxContainer panel = new()
+        VBoxContainer topBar = new()
         {
-            Name = "StatusPanel"
+            Name = "TopResourceBar"
         };
-        panel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
-        panel.MouseEntered += () => FindGameRoot()?.InputIntentController.SetUiBlocked(true);
-        panel.MouseExited += () => FindGameRoot()?.InputIntentController.SetUiBlocked(false);
-        root.AddChild(panel);
+        topBar.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        RegisterUiInputBlocker(topBar);
+        root.AddChild(topBar);
 
         _statusLabel = new Label
         {
-            Text = "地表远征"
+            Text = "地表远征",
+            HorizontalAlignment = HorizontalAlignment.Center
         };
-        panel.AddChild(_statusLabel);
+        topBar.AddChild(_statusLabel);
 
         Label resourceBar = new()
         {
-            Text = "资源栏"
+            Text = "金属 0  |  硅 0  |  稀土 0  |  能源块 0  |  废料 0",
+            HorizontalAlignment = HorizontalAlignment.Center
         };
-        panel.AddChild(resourceBar);
+        topBar.AddChild(resourceBar);
 
-        Label minimap = new()
+        PanelContainer minimapPanel = new()
         {
-            Text = "小地图"
+            Name = "MinimapPanel",
+            CustomMinimumSize = new Vector2(240, 180)
         };
-        panel.AddChild(minimap);
+        minimapPanel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        minimapPanel.OffsetLeft = 16;
+        minimapPanel.OffsetBottom = -16;
+        minimapPanel.OffsetTop = -196;
+        root.AddChild(minimapPanel);
+        RegisterUiInputBlocker(minimapPanel);
 
-        Label selectionPanel = new()
-        {
-            Text = "单位 / 建筑信息"
-        };
-        panel.AddChild(selectionPanel);
+        VBoxContainer minimapBox = new();
+        minimapPanel.AddChild(minimapBox);
+        TextureRect minimapIcon = UiAssets.CreateTextureRect("MinimapIcon", UiAssets.IconMinimap);
+        minimapIcon.CustomMinimumSize = new Vector2(48, 48);
+        minimapBox.AddChild(minimapIcon);
+        minimapBox.AddChild(UiAssets.CreateSectionLabel("区域扫描图"));
 
-        Label commandPanel = new()
+        PanelContainer bottomPanel = new()
         {
-            Text = "命令区"
+            Name = "SelectionPanel",
+            CustomMinimumSize = new Vector2(560, 150)
         };
-        panel.AddChild(commandPanel);
+        bottomPanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
+        bottomPanel.OffsetLeft = 280;
+        bottomPanel.OffsetRight = -280;
+        bottomPanel.OffsetBottom = -16;
+        bottomPanel.OffsetTop = -166;
+        root.AddChild(bottomPanel);
+        RegisterUiInputBlocker(bottomPanel);
 
-        Label messagePanel = new()
+        VBoxContainer selectionBox = new();
+        bottomPanel.AddChild(selectionBox);
+        selectionBox.AddChild(UiAssets.CreateSectionLabel("单位 / 建筑信息"));
+        _manifestLabel = new Label
         {
-            Text = "消息和事件"
+            Text = "初始单位：等待远征载荷\n携带物资：等待远征载荷",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart
         };
-        panel.AddChild(messagePanel);
+        selectionBox.AddChild(_manifestLabel);
 
-        Button returnButton = new()
+        GridContainer commandPanel = new()
         {
-            Text = "模拟火箭回归"
+            Name = "CommandPanel",
+            Columns = 2
         };
-        returnButton.Pressed += () =>
+        commandPanel.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        commandPanel.OffsetLeft = -250;
+        commandPanel.OffsetBottom = -16;
+        commandPanel.OffsetTop = -166;
+        commandPanel.OffsetRight = -16;
+        root.AddChild(commandPanel);
+        RegisterUiInputBlocker(commandPanel);
+
+        AddCommandButton(commandPanel, "回归", UiAssets.IconCommand, () =>
         {
             GameRoot? gameRoot = FindGameRoot();
             if (gameRoot is null)
@@ -153,15 +193,30 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
             ScenePayload returnPayload = CreateReturnPayload(gameRoot);
             gameRoot.NavigateTo(SceneId.ReturnSummary, returnPayload);
+        });
+
+        AddCommandButton(commandPanel, "取消", UiAssets.IconCommand, () => GD.Print("[输入] 命令区取消"));
+
+        VBoxContainer messagePanel = new()
+        {
+            Name = "MessagePanel"
         };
-        panel.AddChild(returnButton);
+        messagePanel.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
+        messagePanel.OffsetLeft = -280;
+        messagePanel.OffsetRight = -16;
+        messagePanel.OffsetTop = -120;
+        messagePanel.OffsetBottom = 120;
+        root.AddChild(messagePanel);
+        RegisterUiInputBlocker(messagePanel);
+        messagePanel.AddChild(UiAssets.CreateSectionLabel("消息和事件"));
+        messagePanel.AddChild(new Label { Text = "当前没有必须立即响应的事件。", AutowrapMode = TextServer.AutowrapMode.WordSmart });
 
         Button backButton = new()
         {
             Text = "返回主入口"
         };
         backButton.Pressed += () => FindGameRoot()?.ShowMainMenu();
-        panel.AddChild(backButton);
+        topBar.AddChild(backButton);
 
         CanvasLayer debugLayer = new()
         {
@@ -172,25 +227,57 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
     private ScenePayload CreateReturnPayload(GameRoot gameRoot)
     {
-        ScenePayload payload = _payload ?? gameRoot.CreateDefaultPayload(SceneId.SurfaceExpedition, SceneId.ReturnSummary);
         ScenePayload returnPayload = new()
         {
             FromScene = SceneId.SurfaceExpedition,
             TargetScene = SceneId.ReturnSummary,
             PayloadType = "surface_return_summary",
-            DebugEnabled = payload.DebugEnabled,
-            Seed = payload.Seed
+            DebugEnabled = _payload?.DebugEnabled ?? false,
+            Seed = _payload?.Seed ?? gameRoot.Session.ActiveExpedition?.Seed ?? 0
         };
 
-        if (payload.Data.TryGetValue("expedition_id", out Variant expeditionId))
+        ExpeditionState? expeditionState = gameRoot.Session.ActiveExpedition;
+        ReturnSummaryPayloadData summaryData = new();
+        if (expeditionState is not null)
         {
-            returnPayload.Data["expedition_id"] = expeditionId;
+            summaryData.ExpeditionId = expeditionState.ExpeditionId;
+            summaryData.BroughtItems.AddRange(expeditionState.InitialItems);
+            summaryData.ReturnCargo.AddRange(expeditionState.RocketState.CargoItems);
+            summaryData.ReturnedAwakenedUnitIds.AddRange(expeditionState.RocketState.ReturningAwakenedUnitIds);
+            summaryData.ReturnedChipIds.AddRange(expeditionState.RocketState.ReturningChipIds);
+            summaryData.ReturnedBlueprintIds.AddRange(expeditionState.RocketState.ReturningBlueprintIds);
+            summaryData.LeftSurfaceAssetIds.AddRange(expeditionState.MapState.LeftAssetIds);
+            summaryData.DiscoveredIds.AddRange(expeditionState.RocketState.ReturningBlueprintIds);
         }
 
-        returnPayload.ReturnCargo.Add(new ItemStack { ItemId = "metal", Count = 25 });
-        returnPayload.ReturnCargo.Add(new ItemStack { ItemId = "energy_cell", Count = 10 });
-        returnPayload.DiscoveredIds.Add("blueprint_basic_rocket_pad");
+        returnPayload.ReturnSummaryData = summaryData;
         return returnPayload;
+    }
+
+    private void RegisterUiInputBlocker(Control control)
+    {
+        control.MouseFilter = Control.MouseFilterEnum.Stop;
+        control.MouseEntered += () => FindGameRoot()?.InputIntentController.SetUiBlocked(true);
+        control.MouseExited += () => FindGameRoot()?.InputIntentController.SetUiBlocked(false);
+        control.GuiInput += inputEvent =>
+        {
+            if (inputEvent is InputEventMouseButton)
+            {
+                GetViewport().SetInputAsHandled();
+            }
+        };
+    }
+
+    private static void AddCommandButton(GridContainer commandPanel, string text, string iconPath, System.Action pressed)
+    {
+        Button button = new()
+        {
+            Text = text,
+            Icon = UiAssets.LoadTexture(iconPath),
+            CustomMinimumSize = new Vector2(110, 56)
+        };
+        button.Pressed += pressed;
+        commandPanel.AddChild(button);
     }
 
     private GameRoot? FindGameRoot()

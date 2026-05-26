@@ -4,6 +4,8 @@ namespace GodotGame;
 
 public partial class Prologue : Control, ScenePayloadReceiver
 {
+    private Label? _nodeLabel;
+
     public override void _Ready()
     {
         BuildUi();
@@ -11,12 +13,21 @@ public partial class Prologue : Control, ScenePayloadReceiver
 
     public void ReceivePayload(ScenePayload payload)
     {
+        if (_nodeLabel is not null && !string.IsNullOrEmpty(payload.NavigationData?.PrologueNodeId))
+        {
+            _nodeLabel.Text = $"序章节点：{payload.NavigationData.PrologueNodeId}";
+        }
+
         GD.Print($"[序章] 进入序章，来源：{payload.FromScene}");
     }
 
     private void BuildUi()
     {
         SetAnchorsPreset(LayoutPreset.FullRect);
+
+        TextureRect background = UiAssets.CreateTextureRect("PrologueBackground", UiAssets.PrologueBackground);
+        background.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(background);
 
         VBoxContainer root = new()
         {
@@ -32,6 +43,13 @@ public partial class Prologue : Control, ScenePayloadReceiver
         };
         root.AddChild(label);
 
+        _nodeLabel = new Label
+        {
+            Text = "序章节点：opening",
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        root.AddChild(_nodeLabel);
+
         Button startButton = new()
         {
             Text = "进入序章远征"
@@ -39,7 +57,7 @@ public partial class Prologue : Control, ScenePayloadReceiver
         startButton.Pressed += () =>
         {
             GameRoot? gameRoot = FindGameRoot();
-            gameRoot?.NavigateTo(SceneId.SurfaceExpedition, gameRoot.CreateDefaultPayload(SceneId.Prologue, SceneId.SurfaceExpedition));
+            gameRoot?.NavigateTo(SceneId.SurfaceExpedition, gameRoot.CreateExpeditionStartPayload(SceneId.Prologue));
         };
         root.AddChild(startButton);
 
