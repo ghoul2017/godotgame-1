@@ -11,6 +11,7 @@ public sealed class UnitInstance
     public int Durability { get; set; }
     public int Energy { get; set; }
     public string InventoryId { get; set; } = string.Empty;
+    public string LockedByExpeditionId { get; set; } = string.Empty;
     public List<string> EquipmentInstanceIds { get; } = new();
     public List<string> ModPartInstanceIds { get; } = new();
     public Dictionary<string, int> SkillExperience { get; } = new();
@@ -18,4 +19,6 @@ public sealed class UnitInstance
     public string BehaviorMode { get; set; } = "balanced";
     public string CurrentCommand { get; set; } = string.Empty;
     public List<string> StoryFlags { get; } = new();
+
+    public bool IsLocked => !string.IsNullOrEmpty(LockedByExpeditionId);
 }

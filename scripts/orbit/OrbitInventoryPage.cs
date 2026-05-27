@@ -77,10 +77,14 @@ public partial class OrbitStation
         {
             Text = text,
             Icon = UiAssets.LoadTexture(iconPath),
+            ExpandIcon = true,
+            ClipText = true,
+            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             ToggleMode = true,
             ButtonPressed = _inventoryFilter == filterKey,
             SizeFlagsHorizontal = SizeFlags.ExpandFill
         };
+        button.AddThemeConstantOverride("icon_max_width", 32);
         button.Pressed += () =>
         {
             _inventoryFilter = filterKey;

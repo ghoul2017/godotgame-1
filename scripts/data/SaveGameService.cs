@@ -94,7 +94,23 @@ public sealed class SaveGameService
                 continue;
             }
 
-            if (plan.SelectedAwakenedUnitInstanceIds.Count > pod.UnitCapacity)
+            if (!registry.TryGetKnownCoordinate(plan.TargetCoordinateId, out KnownCoordinate? coordinate) || coordinate is null)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用缺失坐标：{plan.TargetCoordinateId}");
+            }
+
+            int usedUnitCapacity = 0;
+            foreach (string unitInstanceId in plan.SelectedAwakenedUnitInstanceIds.Concat(plan.SelectedMassUnitInstanceIds).Concat(plan.CreatedUnitInstanceIds))
+            {
+                if (saveGame.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) &&
+                    registry.TryGetUnit(unitInstance.UnitId, out UnitData? unitData) &&
+                    unitData is not null)
+                {
+                    usedUnitCapacity += UnitCapacityCost(unitData, unitInstance.UnitId);
+                }
+            }
+
+            if (usedUnitCapacity > pod.UnitCapacity)
             {
                 report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 超过单位容量");
             }
@@ -113,9 +129,25 @@ public sealed class SaveGameService
 
             foreach (SelectedUnitPlatformItem platformItem in plan.SelectedUnitPlatformItems)
             {
+                if (!registry.TryGetItem(platformItem.ItemId, out ItemData? itemData) ||
+                    itemData is null ||
+                    itemData.Category != "unit_platform" ||
+                    itemData.TargetUnitId != platformItem.TargetUnitId)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用无效单位平台：{platformItem.ItemId}");
+                    continue;
+                }
+
                 if (!registry.TryGetUnit(platformItem.TargetUnitId, out UnitData? unitData) || unitData is null)
                 {
                     report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用缺失目标单位：{platformItem.TargetUnitId}");
+                }
+
+                recalculatedWeight += itemData.UnitWeight * platformItem.Count;
+                InventoryTransferResult fitResult = simulatedCargo.AddStack(new ItemStack { ItemId = platformItem.ItemId, Count = platformItem.Count }, registry);
+                if (!fitResult.IsSuccess)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 平台货舱容量非法：{fitResult.Message}");
                 }
             }
 
@@ -186,7 +218,41 @@ public sealed class SaveGameService
                     report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用无效觉醒者实例：{unitInstanceId}");
                 }
             }
+
+            foreach (string unitInstanceId in plan.SelectedMassUnitInstanceIds)
+            {
+                if (!saveGame.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) || unitInstance.IsAwakened)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用无效量产单位实例：{unitInstanceId}");
+                }
+            }
+
+            foreach (string unitInstanceId in plan.CreatedUnitInstanceIds)
+            {
+                if (!saveGame.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) || unitInstance.IsAwakened)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用缺失平台生成单位：{unitInstanceId}");
+                }
+            }
+
+            ValidateDropPlanTransferReferences(saveGame, plan, report);
         }
+    }
+
+    private static void ValidateDropPlanTransferReferences(SaveGame saveGame, DropPlan plan, DataLoadReport report)
+    {
+        foreach (string transferId in plan.RelatedTransferIds)
+        {
+            if (saveGame.InventoryTransfers.All(transfer => transfer.TransferId != transferId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"空投计划 {plan.DropPlanId} 引用缺失转移记录：{transferId}");
+            }
+        }
+    }
+
+    private static int UnitCapacityCost(UnitData unitData, string unitId)
+    {
+        return unitId is "heavy_cargo_spider" or "rockbreaker" || unitData.Tags.Contains("heavy") ? 2 : 1;
     }
 
     private static void ValidateRunRecords(SaveGame saveGame, DataLoadReport report)
@@ -251,9 +317,13 @@ public sealed class SaveGameService
             return;
         }
 
-        if (!saveGame.DropPlans.ContainsKey(activeExpedition.DropPlanId))
+        if (!saveGame.DropPlans.TryGetValue(activeExpedition.DropPlanId, out DropPlan? dropPlan))
         {
             report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失空投计划：{activeExpedition.DropPlanId}");
+        }
+        else
+        {
+            ValidateActiveExpeditionDropPlan(saveGame, activeExpedition, dropPlan, report);
         }
 
         if (!string.IsNullOrEmpty(activeExpedition.RocketState.CargoInventoryId) &&
@@ -288,6 +358,174 @@ public sealed class SaveGameService
             {
                 report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失物流订单：{logisticsOrderId}");
             }
+        }
+    }
+
+    private static void ValidateActiveExpeditionDropPlan(
+        SaveGame saveGame,
+        ExpeditionState activeExpedition,
+        DropPlan dropPlan,
+        DataLoadReport report)
+    {
+        if (activeExpedition.Seed != dropPlan.Seed ||
+            activeExpedition.TargetCoordinateId != dropPlan.TargetCoordinateId ||
+            activeExpedition.DropPosition != dropPlan.TargetCoordinate)
+        {
+            report.Add(DefinitionStatus.RecoverableError, $"当前远征与空投计划目标不一致：{activeExpedition.ExpeditionId}");
+        }
+
+        if (string.IsNullOrEmpty(activeExpedition.DropPodCargoInventoryId) ||
+            !saveGame.Inventories.TryGetValue(activeExpedition.DropPodCargoInventoryId, out InventoryContainer? dropCargo))
+        {
+            report.Add(DefinitionStatus.RecoverableError, $"当前远征缺少空投货舱库存：{activeExpedition.ExpeditionId}");
+        }
+        else
+        {
+            if (dropCargo.OwnerType != "drop_pod_cargo" || dropCargo.OwnerId != dropPlan.DropPodId)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征空投货舱归属非法：{dropCargo.InventoryId}");
+            }
+
+            if (!activeExpedition.LocationInventoryIds.Contains(dropCargo.InventoryId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征位置库存缺少空投货舱：{dropCargo.InventoryId}");
+            }
+        }
+
+        foreach (string unitInstanceId in dropPlan.SelectedAwakenedUnitInstanceIds.Concat(dropPlan.SelectedMassUnitInstanceIds).Concat(dropPlan.CreatedUnitInstanceIds))
+        {
+            if (!activeExpedition.ActiveUnitInstanceIds.Contains(unitInstanceId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征缺少空投计划单位：{unitInstanceId}");
+                continue;
+            }
+
+            if (saveGame.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) &&
+                unitInstance.LockedByExpeditionId != activeExpedition.ExpeditionId)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"单位实例未锁定到当前远征：{unitInstanceId}");
+            }
+        }
+
+        HashSet<string> plannedUnitIds = new(dropPlan.SelectedAwakenedUnitInstanceIds.Concat(dropPlan.SelectedMassUnitInstanceIds).Concat(dropPlan.CreatedUnitInstanceIds));
+        foreach (string unitInstanceId in activeExpedition.ActiveUnitInstanceIds)
+        {
+            if (plannedUnitIds.Contains(unitInstanceId))
+            {
+                continue;
+            }
+
+            if (saveGame.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) &&
+                unitInstance.CurrentCommand == $"expedition:{activeExpedition.ExpeditionId}")
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征存在未由空投计划带入的初始单位：{unitInstanceId}");
+            }
+        }
+
+        ValidateDropPlanTransferPayloads(saveGame, activeExpedition, dropPlan, report);
+    }
+
+    private static void ValidateDropPlanTransferPayloads(
+        SaveGame saveGame,
+        ExpeditionState activeExpedition,
+        DropPlan dropPlan,
+        DataLoadReport report)
+    {
+        Dictionary<string, int> expectedStacks = SumStacks(dropPlan.SelectedStackItems);
+        Dictionary<string, int> actualStacks = new();
+        HashSet<string> expectedInstances = new(dropPlan.SelectedItemInstanceIds);
+        HashSet<string> actualInstances = new();
+        Dictionary<string, int> expectedPlatforms = new();
+        Dictionary<string, int> actualPlatforms = new();
+        foreach (SelectedUnitPlatformItem platformItem in dropPlan.SelectedUnitPlatformItems)
+        {
+            AddCount(expectedPlatforms, platformItem.ItemId, platformItem.Count);
+        }
+
+        foreach (string transferId in dropPlan.RelatedTransferIds)
+        {
+            InventoryTransfer? transfer = saveGame.InventoryTransfers.FirstOrDefault(candidate => candidate.TransferId == transferId);
+            if (transfer is null)
+            {
+                continue;
+            }
+
+            if (transfer.ExpeditionId != activeExpedition.ExpeditionId)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"空投转移记录远征不匹配：{transferId}");
+            }
+
+            if (transfer.Reason == "drop_plan_load")
+            {
+                if (transfer.FromInventoryId != saveGame.GameSession.OrbitState.InventoryId ||
+                    transfer.ToInventoryId != activeExpedition.DropPodCargoInventoryId)
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"空投装载转移方向非法：{transferId}");
+                }
+
+                if (transfer.ItemInstanceIds.Count == 0)
+                {
+                    AddCount(actualStacks, transfer.ItemId, transfer.Count);
+                }
+                else
+                {
+                    foreach (string itemInstanceId in transfer.ItemInstanceIds)
+                    {
+                        actualInstances.Add(itemInstanceId);
+                    }
+                }
+            }
+            else if (transfer.Reason == "drop_platform_assemble")
+            {
+                if (transfer.FromInventoryId != saveGame.GameSession.OrbitState.InventoryId ||
+                    transfer.ToInventoryId != $"unit_creation:{activeExpedition.ExpeditionId}")
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"单位平台转移方向非法：{transferId}");
+                }
+
+                AddCount(actualPlatforms, transfer.ItemId, transfer.Count);
+            }
+            else
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"空投计划引用了非空投转移记录：{transferId}");
+            }
+        }
+
+        CompareCounts(expectedStacks, actualStacks, $"空投计划 {dropPlan.DropPlanId} 堆叠物资转移记录不一致", report);
+        CompareSets(expectedInstances, actualInstances, $"空投计划 {dropPlan.DropPlanId} 实例道具转移记录不一致", report);
+        CompareCounts(expectedPlatforms, actualPlatforms, $"空投计划 {dropPlan.DropPlanId} 单位平台转移记录不一致", report);
+    }
+
+    private static Dictionary<string, int> SumStacks(IEnumerable<ItemStack> stacks)
+    {
+        Dictionary<string, int> counts = new();
+        foreach (ItemStack stack in stacks)
+        {
+            AddCount(counts, stack.ItemId, stack.Count);
+        }
+
+        return counts;
+    }
+
+    private static void AddCount(Dictionary<string, int> counts, string itemId, int count)
+    {
+        counts.TryGetValue(itemId, out int existingCount);
+        counts[itemId] = existingCount + count;
+    }
+
+    private static void CompareCounts(Dictionary<string, int> expected, Dictionary<string, int> actual, string message, DataLoadReport report)
+    {
+        if (expected.Count != actual.Count || expected.Any(pair => !actual.TryGetValue(pair.Key, out int count) || count != pair.Value))
+        {
+            report.Add(DefinitionStatus.RecoverableError, message);
+        }
+    }
+
+    private static void CompareSets(HashSet<string> expected, HashSet<string> actual, string message, DataLoadReport report)
+    {
+        if (!expected.SetEquals(actual))
+        {
+            report.Add(DefinitionStatus.RecoverableError, message);
         }
     }
 

@@ -8,6 +8,7 @@ public sealed class ExpeditionState
     public string ExpeditionId { get; set; } = string.Empty;
     public int Seed { get; set; }
     public string DropPlanId { get; set; } = string.Empty;
+    public string TargetCoordinateId { get; set; } = string.Empty;
     public string DropPodCargoInventoryId { get; set; } = string.Empty;
     public List<string> ActiveUnitInstanceIds { get; } = new();
     public List<string> LocationInventoryIds { get; } = new();

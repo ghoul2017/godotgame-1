@@ -76,7 +76,7 @@ public static class UiAssets
         return null;
     }
 
-    public static TextureRect CreateTextureRect(string name, string path, TextureRect.ExpandModeEnum expandMode = TextureRect.ExpandModeEnum.FitWidthProportional)
+    public static TextureRect CreateTextureRect(string name, string path, TextureRect.ExpandModeEnum expandMode = TextureRect.ExpandModeEnum.IgnoreSize)
     {
         TextureRect textureRect = new()
         {
@@ -122,6 +122,7 @@ public static class UiAssets
             theme.SetStylebox("panel", "PanelContainer", panelStyle);
         }
 
+        theme.SetConstant("icon_max_width", "Button", 42);
         theme.SetColor("font_color", "Button", new Color(0.86f, 0.9f, 0.84f));
         theme.SetColor("font_hover_color", "Button", new Color(1f, 0.9f, 0.55f));
         theme.SetColor("font_pressed_color", "Button", new Color(0.65f, 0.82f, 0.78f));

@@ -13,6 +13,7 @@ public sealed class DataRegistry
     private readonly Dictionary<string, SkillData> _skills = new();
     private readonly Dictionary<string, EventData> _events = new();
     private readonly Dictionary<string, DropPodData> _dropPods = new();
+    private readonly Dictionary<string, KnownCoordinate> _knownCoordinates = new();
 
     public IReadOnlyDictionary<string, ItemData> Items => _items;
     public IReadOnlyDictionary<string, UnitData> Units => _units;
@@ -21,6 +22,7 @@ public sealed class DataRegistry
     public IReadOnlyDictionary<string, SkillData> Skills => _skills;
     public IReadOnlyDictionary<string, EventData> Events => _events;
     public IReadOnlyDictionary<string, DropPodData> DropPods => _dropPods;
+    public IReadOnlyDictionary<string, KnownCoordinate> KnownCoordinates => _knownCoordinates;
 
     public DataLoadReport LoadBuiltInDefinitions()
     {
@@ -31,6 +33,7 @@ public sealed class DataRegistry
         _skills.Clear();
         _events.Clear();
         _dropPods.Clear();
+        _knownCoordinates.Clear();
 
         AddItems();
         AddUnits();
@@ -39,6 +42,7 @@ public sealed class DataRegistry
         AddSkills();
         AddEvents();
         AddDropPods();
+        AddKnownCoordinates();
 
         return ValidateDefinitions();
     }
@@ -63,6 +67,11 @@ public sealed class DataRegistry
         return _dropPods.TryGetValue(dropPodId, out dropPodData);
     }
 
+    public bool TryGetKnownCoordinate(string coordinateId, out KnownCoordinate? coordinate)
+    {
+        return _knownCoordinates.TryGetValue(coordinateId, out coordinate);
+    }
+
     public string GetItemName(string itemId)
     {
         return _items.TryGetValue(itemId, out ItemData? itemData) ? itemData.DisplayName : itemId;
@@ -75,11 +84,11 @@ public sealed class DataRegistry
 
     private void AddItems()
     {
-        AddItem("metal", "金属", "basic_mineral", "ore", "可回收结构金属，是多数建筑和平台的基础材料。", 0.25f, 2, "mineral", "metallic", "build_material");
+        AddItem("metal", "金属", "basic_mineral", "ore", "可回收结构金属，是多数建筑和平台的基础材料。", 1f, 2, 999, string.Empty, "mineral", "drop_allowed", "metallic", "build_material");
         AddItem("silicon", "硅", "basic_mineral", "mineral", "用于电子元件和传感器阵列的半导体材料。", 0.18f, 3, "mineral", "electronics");
         AddItem("rare_earth", "稀土", "basic_mineral", "mineral", "高性能电机和合金不可缺少的稀有矿物。", 0.2f, 8, "mineral", "advanced");
-        AddItem("energy_cell", "能源块", "basic_mineral", "power", "稳定封装能源，用于空投、生产和火箭回归。", 0.35f, 6, "mineral", "energy");
-        AddItem("scrap", "废料", "basic_mineral", "salvage", "旧世界机械残骸，可回收为金属和零件。", 0.3f, 1, "mineral", "salvage");
+        AddItem("energy_cell", "能源块", "basic_mineral", "power", "稳定封装能源，用于空投、生产和火箭回归。", 2f, 6, 200, string.Empty, "mineral", "drop_allowed", "energy");
+        AddItem("scrap", "废料", "basic_mineral", "salvage", "旧世界机械残骸，可回收为金属和零件。", 1f, 1, 999, string.Empty, "mineral", "drop_allowed", "salvage", "recycle_material");
         AddItem("alloy", "合金", "processed_item", "material", "承力结构和火箭部件使用的强化材料。", 0.28f, 12, "material", "advanced");
         AddItem("electronic_parts", "电子元件", "processed_item", "component", "组装机、扫描器和机器人平台的基础控制组件。", 0.12f, 10, "material", "electronics");
         AddItem("clean_data", "纯净数据", "processed_item", "data", "从污染存储器中整理出的可用旧世界数据。", 0.02f, 18, "material", "data");
@@ -87,12 +96,14 @@ public sealed class DataRegistry
         _items["data_core"].IsUnique = true;
         _items["data_core"].IsQuestItem = true;
         _items["data_core"].CanDiscard = false;
-        AddItem("ai_chip_basic", "通用 AI 芯片", "ai_chip", "brain", "可承载基础行为协议的集成智能核心。", 0.08f, 60, "chip", "instance_item");
-        AddItem("scanner_basic", "简易扫描器", "tool", "scanner", "用于短距扫描矿产点和废墟信号的手持工具。", 0.7f, 35, "tool", "instance_item");
-        AddItem("repair_tool_basic", "简易维修工具", "tool", "repair", "服务型单位使用的基础维修工具。", 0.8f, 30, "tool", "instance_item");
-        AddItem("rifle_basic", "简易实弹枪", "weapon", "ballistic", "旧式弹道武器，适合服务型平台应急防御。", 1.4f, 45, "weapon", "instance_item");
+        AddItem("ai_chip_basic", "通用 AI 芯片", "ai_chip", "brain", "可承载基础行为协议的集成智能核心。", 2f, 60, 1, string.Empty, "chip", "drop_allowed", "upgrade", "instance_item");
+        AddItem("scanner_basic", "简易扫描器", "tool", "scanner", "用于短距扫描矿产点和废墟信号的手持工具。", 5f, 35, 1, string.Empty, "tool", "drop_allowed", "scan", "instance_item");
+        AddItem("repair_tool_basic", "简易维修工具", "tool", "repair", "服务型单位使用的基础维修工具。", 6f, 30, 1, string.Empty, "tool", "drop_allowed", "repair", "instance_item");
+        AddItem("rifle_basic", "简易实弹枪", "weapon", "ballistic", "旧式弹道武器，适合服务型平台应急防御。", 8f, 45, 1, string.Empty, "weapon", "drop_allowed", "ballistic", "instance_item");
         AddItem("servo_mod_basic", "基础伺服改装件", "mod_part", "mobility", "提高民用平台关节输出的通用改装件。", 0.45f, 40, "mod_part", "instance_item");
-        AddItem("service_bot_platform", "服务型量产机平台", "unit_platform", "humanoid", "可组装服务型量产机的基础机体。", 2.2f, 85, "unit_platform");
+        AddItem("service_bot_platform", "服务型量产机平台", "unit_platform", "humanoid", "可组装服务型量产机的基础机体。", 18f, 85, 10, "service_bot", "unit_platform", "drop_allowed", "service_bot");
+        AddItem("light_cargo_drone_platform", "轻型运输无人机平台", "unit_platform", "drone", "可组装轻型运输无人机的空投平台。", 14f, 80, 10, "light_cargo_drone", "unit_platform", "drop_allowed", "drone", "scout");
+        AddItem("heavy_cargo_spider_platform", "重型运输机器人平台", "unit_platform", "heavy", "可组装重型运输机器人的多足平台。", 34f, 140, 5, "heavy_cargo_spider", "unit_platform", "drop_allowed", "heavy", "cargo");
         AddItem("rocket_part", "火箭部件", "building_module", "rocket", "火箭组装坪用于推进舱和货舱结构的模块。", 4.0f, 120, "building_module");
     }
 
@@ -152,16 +163,49 @@ public sealed class DataRegistry
         DropPodData pod = new()
         {
             Id = "drop_pod_single_use",
-            DisplayName = "单程空投舱",
-            Description = "早期远征使用的单程投送舱，载重有限但能稳定投放觉醒者和少量物资。",
-            WeightLimit = 90f,
-            SlotLimit = 18,
-            UnitCapacity = 4,
-            IconPath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.png",
-            SpritePath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.png"
+            DisplayName = "单程勘探舱",
+            Description = "早期远征使用的基础空投舱，载荷有限但稳定。",
+            WeightLimit = 120f,
+            SlotLimit = 12,
+            UnitCapacity = 2,
+            IconPath = "res://assets/ui/drop/pods/drop_pod_single_use.png",
+            SpritePath = "res://assets/sprites/drop_pods/drop_pod_single_use.png"
         };
-        pod.AcceptedTags.AddRange(new[] { "mineral", "material", "tool", "weapon", "chip", "mod_part", "unit_platform", "building_module", "quest" });
+        pod.AcceptedTags.AddRange(new[] { "drop_allowed", "mineral", "material", "tool", "weapon", "chip", "mod_part", "unit_platform", "building_module" });
         _dropPods.Add(pod.Id, pod);
+
+        DropPodData cargoPod = new()
+        {
+            Id = "drop_pod_cargo_1",
+            DisplayName = "轻型货运舱",
+            Description = "面向正式远征的轻型货运舱，允许携带更多物资和量产平台。",
+            WeightLimit = 220f,
+            SlotLimit = 20,
+            UnitCapacity = 4,
+            IconPath = "res://assets/ui/drop/pods/drop_pod_cargo_1.png",
+            SpritePath = "res://assets/sprites/drop_pods/drop_pod_cargo_1.png",
+            RequiresBlueprintId = "blueprint_drop_pod_capacity_1"
+        };
+        cargoPod.RequiresProtocolIds.Add("protocol_drop_mass_audit_1");
+        cargoPod.AcceptedTags.AddRange(new[] { "drop_allowed", "mineral", "material", "tool", "weapon", "chip", "mod_part", "unit_platform", "building_module" });
+        _dropPods.Add(cargoPod.Id, cargoPod);
+    }
+
+    private void AddKnownCoordinates()
+    {
+        KnownCoordinate coordinate = new()
+        {
+            CoordinateId = "coord_scrap_plain_01",
+            DisplayName = "废料平原 01",
+            RegionType = "基础废料区",
+            SeedHint = 460001,
+            RiskLevel = 1,
+            DropPosition = new Vector2I(184, -72),
+            IsRevisitable = true,
+            IconPath = "res://assets/ui/drop/coordinates/coord_scrap_plain_01.png"
+        };
+        coordinate.MineralTags.AddRange(new[] { "scrap", "metal", "silicon" });
+        _knownCoordinates.Add(coordinate.CoordinateId, coordinate);
     }
 
     private DataLoadReport ValidateDefinitions()
@@ -170,6 +214,7 @@ public sealed class DataRegistry
         ValidateItemReferences(report);
         ValidateRecipeReferences(report);
         ValidateDropPods(report);
+        ValidateKnownCoordinates(report);
         return report;
     }
 
@@ -178,6 +223,18 @@ public sealed class DataRegistry
         foreach (ItemData item in _items.Values)
         {
             ValidateAsset(report, item.IconPath, $"道具 {item.Id} 缺少图标");
+            ValidateAsset(report, item.WorldSpritePath, $"道具 {item.Id} 缺少地表资源");
+            if (item.Category == "unit_platform")
+            {
+                if (string.IsNullOrWhiteSpace(item.TargetUnitId))
+                {
+                    report.Add(DefinitionStatus.FatalError, $"单位平台 {item.Id} 缺少目标单位");
+                }
+                else if (!_units.ContainsKey(item.TargetUnitId))
+                {
+                    report.Add(DefinitionStatus.FatalError, $"单位平台 {item.Id} 引用缺失目标单位：{item.TargetUnitId}");
+                }
+            }
         }
 
         foreach (UnitData unit in _units.Values)
@@ -201,6 +258,11 @@ public sealed class DataRegistry
         foreach (EventData eventData in _events.Values)
         {
             ValidateAsset(report, eventData.IconPath, $"事件 {eventData.Id} 缺少图标");
+        }
+
+        foreach (KnownCoordinate coordinate in _knownCoordinates.Values)
+        {
+            ValidateAsset(report, coordinate.IconPath, $"坐标 {coordinate.CoordinateId} 缺少图标");
         }
     }
 
@@ -239,6 +301,17 @@ public sealed class DataRegistry
         }
     }
 
+    private void ValidateKnownCoordinates(DataLoadReport report)
+    {
+        foreach (KnownCoordinate coordinate in _knownCoordinates.Values)
+        {
+            if (coordinate.RiskLevel < 0)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"坐标 {coordinate.CoordinateId} 风险等级非法");
+            }
+        }
+    }
+
     private static void ValidateAsset(DataLoadReport report, string path, string message)
     {
         if (string.IsNullOrWhiteSpace(path) || !FileAccess.FileExists(path))
@@ -249,6 +322,11 @@ public sealed class DataRegistry
 
     private void AddItem(string id, string displayName, string category, string subCategory, string description, float weight, int value, params string[] tags)
     {
+        AddItem(id, displayName, category, subCategory, description, weight, value, 0, string.Empty, tags);
+    }
+
+    private void AddItem(string id, string displayName, string category, string subCategory, string description, float weight, int value, int maxStack, string targetUnitId, params string[] tags)
+    {
         ItemData item = new()
         {
             Id = id,
@@ -256,11 +334,12 @@ public sealed class DataRegistry
             Category = category,
             SubCategory = subCategory,
             Description = description,
-            IconPath = $"{DataAssetRoot}/items/{id}.png",
-            WorldSpritePath = $"{DataAssetRoot}/items/{id}.png",
+            IconPath = $"res://assets/ui/icons/items/{id}.png",
+            WorldSpritePath = $"res://assets/sprites/items/{id}.png",
+            TargetUnitId = targetUnitId,
             UnitWeight = weight,
             BaseValue = value,
-            MaxStack = category is "weapon" or "tool" or "ai_chip" or "data_core" ? 1 : 100
+            MaxStack = maxStack > 0 ? maxStack : category is "weapon" or "tool" or "ai_chip" or "data_core" ? 1 : 100
         };
         item.Tags.AddRange(tags);
         item.Tags.Add(category);

@@ -58,7 +58,12 @@ public partial class OrbitStation
 
         GameSession session = _gameRoot.Session;
         DataRegistry registry = _gameRoot.DataRegistry;
-        string coordinates = session.OrbitState.KnownCoordinates.Count == 0 ? "暂无已知坐标" : string.Join(", ", session.OrbitState.KnownCoordinates);
+        string coordinates = session.OrbitState.KnownCoordinates.Count == 0
+            ? "暂无已知坐标"
+            : string.Join(", ", session.OrbitState.KnownCoordinates.Select(coordinateId =>
+                registry.TryGetKnownCoordinate(coordinateId, out KnownCoordinate? coordinate) && coordinate is not null
+                    ? $"{coordinate.DisplayName} [{coordinateId}]"
+                    : coordinateId));
         rows.Add(new OrbitInfoRow(
             "drop:coordinates",
             "已知空投坐标",
@@ -68,16 +73,18 @@ public partial class OrbitStation
 
         foreach (DropPodData pod in registry.DropPods.Values)
         {
+            bool unlocked = (string.IsNullOrEmpty(pod.RequiresBlueprintId) || session.OrbitState.UnlockedBlueprints.Contains(pod.RequiresBlueprintId)) &&
+                pod.RequiresProtocolIds.All(protocolId => session.OrbitState.UnlockedProtocols.Contains(protocolId));
             rows.Add(new OrbitInfoRow(
                 $"drop_pod:{pod.Id}",
                 pod.DisplayName,
-                $"空投舱  载重 {pod.WeightLimit:0.#}  格位 {pod.SlotLimit}  单位容量 {pod.UnitCapacity}",
+                $"空投舱  载重 {pod.WeightLimit:0.#}  格位 {pod.SlotLimit}  单位容量 {pod.UnitCapacity}  {(unlocked ? "可用" : "未解锁")}",
                 pod.IconPath,
-                $"{pod.Description}\n可接受标签：{string.Join(", ", pod.AcceptedTags)}\n第四步会根据蓝图和协议决定可用类型与容量。"));
+                $"{pod.Description}\n可接受标签：{string.Join(", ", pod.AcceptedTags)}\n前置蓝图：{(string.IsNullOrEmpty(pod.RequiresBlueprintId) ? "无" : pod.RequiresBlueprintId)}\n前置协议：{FormatIds(pod.RequiresProtocolIds)}"));
         }
 
         int awakenedCount = session.OrbitState.AwakenedUnits.Count(unitInstanceId =>
-            session.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) && unitInstance.Durability > 0);
+            session.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) && unitInstance.Durability > 0 && !unitInstance.IsLocked);
         int platformCount = CountInventoryCategory("unit_platform");
         int equipmentCount = CountInventoryCategories("weapon", "tool", "ai_chip", "mod_part");
         rows.Add(new OrbitInfoRow(

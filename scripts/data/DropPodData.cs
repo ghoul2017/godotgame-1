@@ -16,4 +16,5 @@ public partial class DropPodData : Resource
     public string IconPath { get; set; } = string.Empty;
     public string SpritePath { get; set; } = string.Empty;
     public string RequiresBlueprintId { get; set; } = string.Empty;
+    public List<string> RequiresProtocolIds { get; } = new();
 }

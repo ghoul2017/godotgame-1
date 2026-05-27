@@ -17,6 +17,8 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
     private string _selectedId = string.Empty;
     private string _pendingActionId = string.Empty;
     private string _inventoryFilter = "all";
+    private bool _refreshPending;
+    private bool _uiReady;
 
     private Label? _creditsLabel;
     private Label? _statusLabel;
@@ -43,7 +45,21 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
         }
 
         BuildUi();
-        OpenPage(!string.IsNullOrEmpty(_payload?.NavigationData?.OrbitPageId) ? _payload.NavigationData.OrbitPageId : OrbitPageId.Inventory);
+        _uiReady = true;
+        _refreshPending = true;
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!_refreshPending)
+        {
+            return;
+        }
+
+        _refreshPending = false;
+        UpdateTabs();
+        RefreshStatus();
+        RefreshCurrentPageNow();
     }
 
     public override void _ExitTree()
@@ -92,6 +108,7 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
 
         if (!string.IsNullOrEmpty(payload.NavigationData?.OrbitPageId))
         {
+            _refreshPending = false;
             OpenPage(payload.NavigationData.OrbitPageId);
         }
     }
@@ -114,7 +131,7 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
         _pendingActionId = string.Empty;
         UpdateTabs();
         RefreshStatus();
-        RefreshCurrentPage();
+        RefreshCurrentPageNow();
 
         if (previousPage != nextPage)
         {
@@ -156,7 +173,8 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
 
         VBoxContainer root = new()
         {
-            Name = "OrbitLayout"
+            Name = "OrbitLayout",
+            CustomMinimumSize = new Vector2(1244, 692)
         };
         margin.AddChild(root);
 
@@ -228,6 +246,7 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
 
         PanelContainer listPanel = new()
         {
+            CustomMinimumSize = new Vector2(420, 0),
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             SizeFlagsVertical = SizeFlags.ExpandFill
         };
@@ -257,14 +276,15 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
         };
         _listContainer = new VBoxContainer
         {
-            SizeFlagsHorizontal = SizeFlags.ExpandFill
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsVertical = SizeFlags.ShrinkBegin
         };
         listScroll.AddChild(_listContainer);
         listLayout.AddChild(listScroll);
 
         PanelContainer detailPanel = new()
         {
-            CustomMinimumSize = new Vector2(390, 0),
+            CustomMinimumSize = new Vector2(420, 0),
             SizeFlagsVertical = SizeFlags.ExpandFill
         };
         VBoxContainer detail = new();
@@ -340,16 +360,28 @@ public partial class OrbitStation : Control, ScenePayloadReceiver
         {
             Text = text,
             Icon = UiAssets.LoadTexture(iconPath),
+            ExpandIcon = true,
             ToggleMode = true,
             CustomMinimumSize = new Vector2(0, 62),
             SizeFlagsHorizontal = SizeFlags.ExpandFill
         };
+        button.AddThemeConstantOverride("icon_max_width", 42);
         button.Pressed += () => OpenPage(pageId);
         tabs.AddChild(button);
         _tabButtons[pageId] = button;
     }
 
     private void RefreshCurrentPage()
+    {
+        if (!_uiReady)
+        {
+            return;
+        }
+
+        _refreshPending = true;
+    }
+
+    private void RefreshCurrentPageNow()
     {
         ClearChildren(_filterContainer);
         ClearChildren(_listContainer);

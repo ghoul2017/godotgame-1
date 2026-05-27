@@ -114,11 +114,13 @@ public partial class OrbitStation
         {
             Text = text,
             Icon = UiAssets.LoadTexture(iconPath),
+            ExpandIcon = true,
             ToggleMode = true,
             ButtonPressed = rowId == _selectedId,
             CustomMinimumSize = new Vector2(0, 78),
             SizeFlagsHorizontal = SizeFlags.ExpandFill
         };
+        button.AddThemeConstantOverride("icon_max_width", 44);
         StyleBoxTexture? rowStyle = UiAssets.CreateTextureStyleBox(UiAssets.OrbitListRow, new Rect2(8, 8, 624, 70), 10);
         if (rowStyle is not null)
         {

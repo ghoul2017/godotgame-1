@@ -12,6 +12,7 @@ public partial class ItemData : Resource
     public string Description { get; set; } = string.Empty;
     public string IconPath { get; set; } = string.Empty;
     public string WorldSpritePath { get; set; } = string.Empty;
+    public string TargetUnitId { get; set; } = string.Empty;
     public int MaxStack { get; set; } = 100;
     public float UnitWeight { get; set; } = 1f;
     public int BaseValue { get; set; }

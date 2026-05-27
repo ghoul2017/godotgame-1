@@ -5,6 +5,9 @@ namespace GodotGame;
 
 public partial class GameRoot : Control
 {
+    private static readonly Vector2I DefaultWindowSize = new(1600, 900);
+    private static readonly Vector2I MinimumWindowSize = new(1280, 720);
+
     private readonly DebugLauncher _debugLauncher = new();
     private GameSession _session = new();
     private readonly DataRegistry _dataRegistry = new();
@@ -22,6 +25,7 @@ public partial class GameRoot : Control
     public override void _Ready()
     {
         GD.Print("[启动] 主入口初始化开始");
+        ConfigureMainWindow();
         InputActions.EnsureConfigured();
         DataLoadReport report = _dataRegistry.LoadBuiltInDefinitions();
         foreach (DataLoadIssue issue in report.Issues)
@@ -63,6 +67,22 @@ public partial class GameRoot : Control
 
         ShowMainMenu();
         GD.Print("[启动] 主入口初始化完成");
+    }
+
+    private static void ConfigureMainWindow()
+    {
+        if (DisplayServer.GetName() == "headless")
+        {
+            return;
+        }
+
+        int mainWindowId = (int)DisplayServer.MainWindowId;
+        DisplayServer.WindowSetMinSize(MinimumWindowSize, mainWindowId);
+        Vector2I currentSize = DisplayServer.WindowGetSize(mainWindowId);
+        if (currentSize.X < MinimumWindowSize.X || currentSize.Y < MinimumWindowSize.Y)
+        {
+            DisplayServer.WindowSetSize(DefaultWindowSize, mainWindowId);
+        }
     }
 
     public void ShowMainMenu()
@@ -259,10 +279,12 @@ public partial class GameRoot : Control
         ClearSceneContainer();
         _session = new GameSession();
         BootstrapSessionData();
-        _session.CurrentState = "new_game_pending";
         RefreshContinueButton();
-        ShowMainMenuStatus("新游戏正式流程尚未接入，已创建新的运行会话。");
-        GD.Print("[主入口] 新游戏会话已创建，正式流程尚未接入");
+        ScenePayload payload = CreateNavigationPayload(SceneId.Main, SceneId.OrbitStation);
+        payload.NavigationData ??= new NavigationPayloadData();
+        payload.NavigationData.OrbitPageId = OrbitPageId.Drop;
+        GD.Print("[主入口] 新游戏会话已创建，进入轨道站空投页");
+        NavigateTo(SceneId.OrbitStation, payload);
     }
 
     private void ShowMainMenuStatus(string message)
@@ -443,6 +465,18 @@ public partial class GameRoot : Control
             }
         }
 
+        if (_session.ActiveExpedition is not null)
+        {
+            foreach (string unitInstanceId in _session.ActiveExpedition.ActiveUnitInstanceIds)
+            {
+                if (_session.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance))
+                {
+                    unitInstance.LockedByExpeditionId = string.Empty;
+                    unitInstance.CurrentCommand = string.Empty;
+                }
+            }
+        }
+
         _session.RunRecords.Add(record);
         _session.OrbitState.CompletedRunRecordIds.Add(record.RunRecordId);
         _session.ActiveExpedition = null;
@@ -452,9 +486,9 @@ public partial class GameRoot : Control
     private void BootstrapSessionData()
     {
         _session.OrbitState.Credits = 120;
-        if (!_session.OrbitState.KnownCoordinates.Contains("ruined_array_184_-72"))
+        if (!_session.OrbitState.KnownCoordinates.Contains("coord_scrap_plain_01"))
         {
-            _session.OrbitState.KnownCoordinates.Add("ruined_array_184_-72");
+            _session.OrbitState.KnownCoordinates.Add("coord_scrap_plain_01");
         }
 
         InventoryContainer orbitInventory = EnsureInventory(_session.OrbitState.InventoryId, "orbit_inventory", _session.OrbitState.OrbitStateId, 64, 2000f);
@@ -465,9 +499,13 @@ public partial class GameRoot : Control
         AddBootstrapStack(orbitInventory, "electronic_parts", 30);
         AddBootstrapStack(orbitInventory, "clean_data", 12);
         AddBootstrapStack(orbitInventory, "alloy", 12);
+        AddBootstrapStack(orbitInventory, "service_bot_platform", 2);
+        AddBootstrapStack(orbitInventory, "light_cargo_drone_platform", 2);
+        AddBootstrapStack(orbitInventory, "heavy_cargo_spider_platform", 1);
         AddBootstrapInstance(orbitInventory, "scanner_basic_001", "scanner_basic", 100, "standard");
         AddBootstrapInstance(orbitInventory, "repair_tool_basic_001", "repair_tool_basic", 100, "standard");
         AddBootstrapInstance(orbitInventory, "rifle_basic_001", "rifle_basic", 100, "worn");
+        AddBootstrapInstance(orbitInventory, "ai_chip_basic_001", "ai_chip_basic", 100, "standard");
         AddBootstrapInstance(orbitInventory, "servo_mod_basic_001", "servo_mod_basic", 100, "standard");
 
         EnsureUnitInstance("unit_dexter", "dexter", "灵巧", true, _session.OrbitState.InventoryId);

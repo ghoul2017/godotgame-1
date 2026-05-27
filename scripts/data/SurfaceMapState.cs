@@ -1,9 +1,13 @@
 using System.Collections.Generic;
+using Godot;
 
 namespace GodotGame;
 
 public sealed class SurfaceMapState
 {
+    public string TargetCoordinateId { get; set; } = string.Empty;
+    public int Seed { get; set; }
+    public Vector2I DropPosition { get; set; }
     public List<string> ExploredRegionIds { get; } = new();
     public List<string> DiscoveredMineralSourceIds { get; } = new();
     public List<string> DiscoveredRuinIds { get; } = new();

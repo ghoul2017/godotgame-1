@@ -71,6 +71,13 @@
 - 复用以降低复杂度为前提，不为了“抽象”而抽象；重复出现真实维护成本后再提炼公共逻辑。
 - 面向失败编程：资源缺失、空引用、非法输入、加载失败和存档不兼容等情况要有明确处理。
 
+## Godot UI 布局与崩溃排查规则
+
+- Godot `TextureRect` 和 `Button.Icon` 的原始贴图尺寸会参与 `Control` 最小尺寸计算；图标、状态角标和按钮图标必须显式收口。`TextureRect` 默认使用 `ExpandModeEnum.IgnoreSize`，图标节点同时设置 `CustomMinimumSize`；带图标按钮设置 `ExpandIcon = true`，并设置 `icon_max_width`。
+- 轨道站、空投配置等复杂 `ScrollContainer` / `Container` 页面，不要在 Button、SpinBox、筛选按钮等信号回调中同步 `QueueFree` 并重建当前列表。先记录状态变化，再用 pending 标记在 `_Process` 下一帧刷新。
+- 看到 `CallQueue::push_callablep`、`CanvasItem::queue_redraw`、`Control::_size_changed`、`Container::fit_child_in_rect`、`BoxContainer::_resort`、`Message queue out of memory` 或 `Object was deleted while awaiting a callback` 时，优先按 UI 最小尺寸反馈环、自动换行、贴图原始尺寸、同帧清空重建排查，不要只查 C# 业务异常。
+- UI 挤压不能只看窗口大小；必须用 Godot MCP 或运行时诊断输出检查关键节点 `size` 和 `get_combined_minimum_size()`，确认根布局、主体容器和各列实际尺寸落在窗口与边距内。
+
 ## 专业程序员基本技能和素养
 
 - 写代码前能拆解任务，识别影响范围、依赖关系、风险点和验证方式。

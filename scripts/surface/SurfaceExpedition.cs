@@ -50,7 +50,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         ExpeditionStartPayloadData? expeditionData = payload.ExpeditionStartData;
         if (_statusLabel is not null && expeditionData is not null)
         {
-            _statusLabel.Text = $"远征 {expeditionData.ExpeditionId}  |  种子 {expeditionData.Seed}  |  空投坐标 {expeditionData.DropPosition.X},{expeditionData.DropPosition.Y}";
+            _statusLabel.Text = $"远征 {expeditionData.ExpeditionId}  |  种子 {expeditionData.Seed}  |  坐标 {expeditionData.TargetCoordinateId} ({expeditionData.DropPosition.X},{expeditionData.DropPosition.Y})";
         }
 
         if (_manifestLabel is not null && expeditionData is not null)
