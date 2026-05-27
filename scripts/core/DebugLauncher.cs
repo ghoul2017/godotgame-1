@@ -15,6 +15,7 @@ public sealed class DebugLauncher
         return scene switch
         {
             SceneId.OrbitStation => SceneId.OrbitStation,
+            SceneId.DropConfig => SceneId.DropConfig,
             SceneId.SurfaceExpedition => SceneId.SurfaceExpedition,
             SceneId.ReturnSummary => SceneId.ReturnSummary,
             _ => string.Empty

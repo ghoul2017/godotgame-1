@@ -96,97 +96,28 @@ public partial class GameRoot : Control
 
     public ScenePayload CreateExpeditionStartPayload(string fromScene, bool debugEnabled = false)
     {
-        int seed = debugEnabled ? _debugLauncher.GetSeed() : 460001;
-        string expeditionId = $"expedition_{seed}";
-        string dropPlanId = $"drop_plan_{seed}";
-        string dropCargoId = $"drop_pod_cargo_{seed}";
-        string rocketCargoId = $"rocket_cargo_{seed}";
-        Vector2I dropPosition = new(184, -72);
-        DropPlan dropPlan = CreateDropPlan(dropPlanId, seed, dropPosition);
-
-        ExpeditionState expeditionState = new()
+        ExpeditionCreationService service = new(_session, _dataRegistry);
+        DropConfigSession config = service.CreateDefaultDropConfig(debugEnabled ? _debugLauncher.GetSeed() : 0);
+        if (service.TryCreateExpeditionStartPayload(config, fromScene, debugEnabled, out ScenePayload payload, out string message))
         {
-            ExpeditionId = expeditionId,
-            Seed = seed,
-            DropPlanId = dropPlan.DropPlanId,
-            DropPodCargoInventoryId = dropCargoId,
-            DropPosition = dropPosition,
-            CreatedAtRunTime = Time.GetUnixTimeFromSystem()
-        };
-        expeditionState.InitialUnits.Add(new UnitStack { UnitId = "dexter", Count = 1, ConfigId = "hero_dexter_default" });
-        expeditionState.InitialUnits.Add(new UnitStack { UnitId = "light_cargo_drone", Count = 2, ConfigId = "cargo_drone_scout_loadout" });
-        expeditionState.InitialItems.AddRange(dropPlan.SelectedStackItems);
-        expeditionState.ActiveUnitInstanceIds.Add("unit_dexter");
-        expeditionState.ActiveUnitInstanceIds.Add("unit_drone_scout_01");
-        expeditionState.ActiveUnitInstanceIds.Add("unit_drone_scout_02");
-        expeditionState.LocationInventoryIds.Add(dropCargoId);
-        expeditionState.RocketState.CargoInventoryId = rocketCargoId;
-        expeditionState.MapState.ExploredRegionIds.Add("drop_zone_ruined_array");
-        expeditionState.MapState.DiscoveredMineralSourceIds.Add("nearby_scrap_field");
-        expeditionState.MapState.DiscoveredRuinIds.Add("ruin_signal_cache");
-        InventoryContainer dropCargo = new()
-        {
-            InventoryId = dropCargoId,
-            OwnerType = "drop_pod_cargo",
-            OwnerId = dropPlan.DropPodId,
-            SlotLimit = 18,
-            WeightLimit = dropPlan.WeightLimit
-        };
-        if (_dataRegistry.TryGetDropPod(dropPlan.DropPodId, out DropPodData? pod) && pod is not null)
-        {
-            dropCargo.AcceptedTags.AddRange(pod.AcceptedTags);
-            dropCargo.BlockedTags.AddRange(pod.BlockedTags);
-        }
-        _session.Inventories[dropCargo.InventoryId] = dropCargo;
-
-        InventoryContainer rocketCargo = new()
-        {
-            InventoryId = rocketCargoId,
-            OwnerType = "rocket_cargo",
-            OwnerId = expeditionId,
-            SlotLimit = 24,
-            WeightLimit = expeditionState.RocketState.CargoWeightLimit
-        };
-        _session.Inventories[rocketCargo.InventoryId] = rocketCargo;
-
-        if (!ValidateDropPlanCargo(dropPlan) || !TransferDropPlanCargo(dropPlan, dropCargo, expeditionId))
-        {
-            GD.PushError("[空投] 空投计划校验或装载失败，未创建正式远征");
-            _session.Inventories.Remove(dropCargo.InventoryId);
-            _session.Inventories.Remove(rocketCargo.InventoryId);
-            return CreateNavigationPayload(fromScene, SceneId.OrbitStation, debugEnabled);
+            return payload;
         }
 
-        _session.DropPlans[dropPlan.DropPlanId] = dropPlan;
-        _session.ActiveExpedition = expeditionState;
+        GD.PushError($"[空投] {message}");
+        return CreateNavigationPayload(fromScene, SceneId.OrbitStation, debugEnabled);
+    }
 
-        if (debugEnabled)
+    public bool TryStartExpeditionFromDropConfig(DropConfigSession config, string fromScene, bool debugEnabled, out string message)
+    {
+        ExpeditionCreationService service = new(_session, _dataRegistry);
+        if (!service.TryCreateExpeditionStartPayload(config, fromScene, debugEnabled, out ScenePayload payload, out message))
         {
-            StageDebugReturnCargo(dropCargo, rocketCargo, expeditionState);
+            GD.PushWarning($"[空投] {message}");
+            return false;
         }
 
-        ExpeditionStartPayloadData expeditionData = new()
-        {
-            ExpeditionId = expeditionState.ExpeditionId,
-            DropPlanId = dropPlan.DropPlanId,
-            DropPodCargoInventoryId = dropCargo.InventoryId,
-            Seed = seed,
-            DropPosition = expeditionState.DropPosition
-        };
-        expeditionData.InitialUnits.AddRange(expeditionState.InitialUnits);
-        expeditionData.InitialItems.AddRange(expeditionState.InitialItems);
-
-        ScenePayload payload = new()
-        {
-            FromScene = fromScene,
-            TargetScene = SceneId.SurfaceExpedition,
-            PayloadType = "expedition_start",
-            ExpeditionStartData = expeditionData,
-            DebugEnabled = debugEnabled,
-            Seed = seed
-        };
-
-        return payload;
+        NavigateTo(SceneId.SurfaceExpedition, payload);
+        return true;
     }
 
     private ScenePayload CreateDebugReturnSummaryPayload(string fromScene)
@@ -619,155 +550,6 @@ public partial class GameRoot : Control
         _session.UnitInstances[instanceId] = instance;
     }
 
-    private DropPlan CreateDropPlan(string dropPlanId, int seed, Vector2I targetCoordinate)
-    {
-        _dataRegistry.TryGetDropPod("drop_pod_single_use", out DropPodData? pod);
-        DropPlan plan = new()
-        {
-            DropPlanId = dropPlanId,
-            DropPodId = pod?.Id ?? "drop_pod_single_use",
-            TargetCoordinate = targetCoordinate,
-            Seed = seed,
-            WeightLimit = pod?.WeightLimit ?? 90f,
-            CreatedFromOrbitStateId = _session.OrbitState.OrbitStateId
-        };
-        plan.SelectedAwakenedUnitInstanceIds.Add("unit_dexter");
-        plan.SelectedStackItems.Add(new ItemStack { ItemId = "metal", Count = 60 });
-        plan.SelectedStackItems.Add(new ItemStack { ItemId = "energy_cell", Count = 30 });
-        plan.SelectedItemInstanceIds.Add("scanner_basic_001");
-        plan.SelectedItemInstanceIds.Add("repair_tool_basic_001");
-        plan.SelectedItemInstanceIds.Add("rifle_basic_001");
-        plan.SelectedItemInstanceIds.Add("servo_mod_basic_001");
-        foreach (ItemStack stack in plan.SelectedStackItems)
-        {
-            plan.UsedWeight += _dataRegistry.GetStackWeight(stack);
-        }
-
-        foreach (string itemInstanceId in plan.SelectedItemInstanceIds)
-        {
-            if (_session.ItemInstances.TryGetValue(itemInstanceId, out ItemInstance? itemInstance) &&
-                _dataRegistry.TryGetItem(itemInstance.ItemId, out ItemData? itemData) &&
-                itemData is not null)
-            {
-                plan.UsedWeight += itemData.UnitWeight;
-            }
-        }
-
-        return plan;
-    }
-
-    private bool ValidateDropPlanCargo(DropPlan plan)
-    {
-        if (!_dataRegistry.TryGetDropPod(plan.DropPodId, out DropPodData? pod) || pod is null)
-        {
-            GD.PushWarning($"[空投] 找不到空投舱定义：{plan.DropPodId}");
-            return false;
-        }
-
-        if (plan.UsedWeight > pod.WeightLimit)
-        {
-            GD.PushWarning($"[空投] 空投计划超重：{plan.UsedWeight:0.0}/{pod.WeightLimit:0.0}");
-            return false;
-        }
-
-        if (plan.SelectedAwakenedUnitInstanceIds.Count > pod.UnitCapacity)
-        {
-            GD.PushWarning($"[空投] 空投单位数量超过容量：{plan.SelectedAwakenedUnitInstanceIds.Count}/{pod.UnitCapacity}");
-            return false;
-        }
-
-        HashSet<string> selectedAwakenedUnits = new();
-        foreach (string unitInstanceId in plan.SelectedAwakenedUnitInstanceIds)
-        {
-            if (!selectedAwakenedUnits.Add(unitInstanceId) ||
-                !_session.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance) ||
-                !unitInstance.IsAwakened ||
-                !_session.OrbitState.AwakenedUnits.Contains(unitInstanceId) ||
-                !_dataRegistry.TryGetUnit(unitInstance.UnitId, out UnitData? unitData) ||
-                unitData is null)
-            {
-                GD.PushWarning($"[空投] 觉醒者实例不可用于空投：{unitInstanceId}");
-                return false;
-            }
-        }
-
-        InventoryContainer orbitInventory = EnsureInventory(_session.OrbitState.InventoryId, "orbit_inventory", _session.OrbitState.OrbitStateId, 64, 2000f);
-        InventoryContainer simulatedDropCargo = new()
-        {
-            InventoryId = "drop_plan_validation",
-            OwnerType = "drop_pod_cargo",
-            OwnerId = plan.DropPodId,
-            SlotLimit = pod.SlotLimit,
-            WeightLimit = pod.WeightLimit
-        };
-        simulatedDropCargo.AcceptedTags.AddRange(pod.AcceptedTags);
-        simulatedDropCargo.BlockedTags.AddRange(pod.BlockedTags);
-
-        Dictionary<string, int> requiredStacks = new();
-        foreach (ItemStack stack in plan.SelectedStackItems)
-        {
-            requiredStacks.TryGetValue(stack.ItemId, out int currentCount);
-            requiredStacks[stack.ItemId] = currentCount + stack.Count;
-        }
-
-        foreach (KeyValuePair<string, int> requiredStack in requiredStacks)
-        {
-            if (orbitInventory.GetItemCount(requiredStack.Key) < requiredStack.Value)
-            {
-                GD.PushWarning($"[空投] 轨道库存不足：{requiredStack.Key}");
-                return false;
-            }
-
-            if (!_dataRegistry.TryGetItem(requiredStack.Key, out ItemData? itemData) || itemData is null)
-            {
-                GD.PushWarning($"[空投] 找不到道具定义：{requiredStack.Key}");
-                return false;
-            }
-
-            if (pod.BlockedTags.Exists(itemData.Tags.Contains) ||
-                !(pod.AcceptedTags.Exists(itemData.Tags.Contains) || pod.AcceptedTags.Contains(itemData.Category)))
-            {
-                GD.PushWarning($"[空投] 空投舱不接受道具：{requiredStack.Key}");
-                return false;
-            }
-
-            InventoryTransferResult fitResult = simulatedDropCargo.AddStack(new ItemStack { ItemId = requiredStack.Key, Count = requiredStack.Value }, _dataRegistry);
-            if (!fitResult.IsSuccess)
-            {
-                GD.PushWarning($"[空投] 空投货舱容量校验失败：{fitResult.Message}");
-                return false;
-            }
-        }
-
-        foreach (string itemInstanceId in plan.SelectedItemInstanceIds)
-        {
-            if (!orbitInventory.ItemInstanceIds.Contains(itemInstanceId) ||
-                !_session.ItemInstances.TryGetValue(itemInstanceId, out ItemInstance? itemInstance) ||
-                !_dataRegistry.TryGetItem(itemInstance.ItemId, out ItemData? itemData) ||
-                itemData is null)
-            {
-                GD.PushWarning($"[空投] 轨道库存缺少实例道具：{itemInstanceId}");
-                return false;
-            }
-
-            if (pod.BlockedTags.Exists(itemData.Tags.Contains) ||
-                !(pod.AcceptedTags.Exists(itemData.Tags.Contains) || pod.AcceptedTags.Contains(itemData.Category)))
-            {
-                GD.PushWarning($"[空投] 空投舱不接受实例道具：{itemInstanceId}");
-                return false;
-            }
-
-            InventoryTransferResult fitResult = simulatedDropCargo.AddItemInstance(itemInstanceId, _session.ItemInstances, _dataRegistry);
-            if (!fitResult.IsSuccess)
-            {
-                GD.PushWarning($"[空投] 空投实例容量校验失败：{fitResult.Message}");
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private bool ValidateReturnSummary(ReturnSummaryPayloadData summaryData)
     {
         if (_session.ActiveExpedition is null ||
@@ -858,92 +640,6 @@ public partial class GameRoot : Control
 
         clone.ItemInstanceIds.AddRange(source.ItemInstanceIds);
         return clone;
-    }
-
-    private bool TransferDropPlanCargo(DropPlan plan, InventoryContainer dropCargo, string expeditionId)
-    {
-        InventoryContainer orbitInventory = EnsureInventory(_session.OrbitState.InventoryId, "orbit_inventory", _session.OrbitState.OrbitStateId, 64, 2000f);
-        foreach (ItemStack stack in plan.SelectedStackItems)
-        {
-            InventoryTransferResult result = orbitInventory.TransferTo(dropCargo, stack.ItemId, stack.Count, _dataRegistry, "drop_plan_load", expeditionId);
-            if (result.IsSuccess && result.Transfer is not null)
-            {
-                _session.InventoryTransfers.Add(result.Transfer);
-                plan.RelatedTransferIds.Add(result.Transfer.TransferId);
-            }
-            else
-            {
-                GD.PushWarning($"[库存] 空投装载失败：{result.Message}");
-                return false;
-            }
-        }
-
-        foreach (string itemInstanceId in plan.SelectedItemInstanceIds)
-        {
-            InventoryTransferResult result = orbitInventory.TransferItemInstanceTo(dropCargo, itemInstanceId, _session.ItemInstances, _dataRegistry, "drop_plan_load", expeditionId);
-            if (result.IsSuccess && result.Transfer is not null)
-            {
-                _session.InventoryTransfers.Add(result.Transfer);
-                plan.RelatedTransferIds.Add(result.Transfer.TransferId);
-            }
-            else
-            {
-                GD.PushWarning($"[库存] 空投实例装载失败：{result.Message}");
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private void StageDebugReturnCargo(InventoryContainer dropCargo, InventoryContainer rocketCargo, ExpeditionState expeditionState)
-    {
-        expeditionState.RocketState.IsConstructed = true;
-        expeditionState.RocketState.ConstructionProgress = 1f;
-        expeditionState.RocketState.IsReadyToReturn = true;
-        expeditionState.RocketState.LaunchConfirmed = true;
-        TransferToRocket(dropCargo, rocketCargo, "metal", 25, expeditionState);
-        TransferToRocket(dropCargo, rocketCargo, "energy_cell", 10, expeditionState);
-        rocketCargo.AddStack(new ItemStack { ItemId = "scrap", Count = 18 }, _dataRegistry);
-        rocketCargo.AddStack(new ItemStack { ItemId = "clean_data", Count = 2 }, _dataRegistry);
-        TransferInstanceToRocket(dropCargo, rocketCargo, "scanner_basic_001", expeditionState);
-        expeditionState.RocketState.CargoItems.Clear();
-        expeditionState.RocketState.CargoItems.AddRange(rocketCargo.ItemStacks);
-        expeditionState.RocketState.ReturningItemInstanceIds.Clear();
-        expeditionState.RocketState.ReturningItemInstanceIds.AddRange(rocketCargo.ItemInstanceIds);
-        expeditionState.RocketState.ReturningAwakenedUnitIds.Add("unit_dexter");
-        expeditionState.RocketState.ReturningChipIds.Add("ai_chip_basic");
-        expeditionState.RocketState.ReturningBlueprintIds.Add("blueprint_rocket_pad_basic");
-        expeditionState.DiscoveredIds.Add("blueprint_rocket_pad_basic");
-        expeditionState.DiscoveredIds.Add("ruin_signal_cache");
-        expeditionState.MapState.LeftAssetIds.Add("left_storage_cache_ruined_array");
-        expeditionState.RocketState.IsOverloaded = rocketCargo.GetTotalWeight(_dataRegistry, _session.ItemInstances) > expeditionState.RocketState.CargoWeightLimit;
-    }
-
-    private void TransferToRocket(InventoryContainer from, InventoryContainer to, string itemId, int count, ExpeditionState expeditionState)
-    {
-        InventoryTransferResult result = from.TransferTo(to, itemId, count, _dataRegistry, "rocket_cargo_load", expeditionState.ExpeditionId);
-        if (result.IsSuccess && result.Transfer is not null)
-        {
-            _session.InventoryTransfers.Add(result.Transfer);
-        }
-        else
-        {
-            GD.PushWarning($"[库存] 火箭装载失败：{result.Message}");
-        }
-    }
-
-    private void TransferInstanceToRocket(InventoryContainer from, InventoryContainer to, string itemInstanceId, ExpeditionState expeditionState)
-    {
-        InventoryTransferResult result = from.TransferItemInstanceTo(to, itemInstanceId, _session.ItemInstances, _dataRegistry, "rocket_cargo_load", expeditionState.ExpeditionId);
-        if (result.IsSuccess && result.Transfer is not null)
-        {
-            _session.InventoryTransfers.Add(result.Transfer);
-        }
-        else
-        {
-            GD.PushWarning($"[库存] 火箭实例装载失败：{result.Message}");
-        }
     }
 
     private InventoryContainer EnsureInventory(string inventoryId, string ownerType, string ownerId, int slotLimit, float weightLimit)

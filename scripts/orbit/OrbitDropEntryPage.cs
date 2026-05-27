@@ -8,8 +8,8 @@ public partial class OrbitStation
 {
     private void BuildDropPage()
     {
-        SetPageTitle("空投 | 后续配置入口");
-        AddHintFilter("只展示准备状态，不创建远征");
+        SetPageTitle("空投 | 配置入口");
+        AddHintFilter("进入空投配置后确认坐标、空投舱、单位和物资");
 
         List<OrbitInfoRow> rows = BuildDropRows();
         if (string.IsNullOrEmpty(_selectedId) || rows.All(row => row.Id != _selectedId))
@@ -35,7 +35,17 @@ public partial class OrbitStation
 
         OrbitInfoRow selected = rows.First(row => row.Id == _selectedId);
         ShowInfoDetail(selected);
-        ConfigureAction("进入空投配置", false, "空投配置模块尚未接入", () => { });
+        bool canEnterDropConfig = _gameRoot is not null && _gameRoot.Session.ActiveExpedition is null;
+        ConfigureAction("进入空投配置", canEnterDropConfig, "已有进行中的远征", () =>
+        {
+            if (_gameRoot is null)
+            {
+                return;
+            }
+
+            ScenePayload payload = _gameRoot.CreateNavigationPayload(SceneId.OrbitStation, SceneId.DropConfig);
+            _gameRoot.NavigateTo(SceneId.DropConfig, payload);
+        });
     }
 
     private List<OrbitInfoRow> BuildDropRows()
@@ -54,7 +64,7 @@ public partial class OrbitStation
             "已知空投坐标",
             $"坐标数量 {session.OrbitState.KnownCoordinates.Count}",
             UiAssets.IconDrop,
-            $"已知坐标：{coordinates}\n坐标只作为后续空投配置输入，本页不会创建远征。"));
+            $"已知坐标：{coordinates}\n坐标由空投配置确认后写入远征状态。"));
 
         foreach (DropPodData pod in registry.DropPods.Values)
         {
@@ -82,7 +92,7 @@ public partial class OrbitStation
                 $"可携带装备、工具、芯片和改装件：{equipmentCount}",
                 $"已解锁蓝图：{FormatIds(session.OrbitState.UnlockedBlueprints)}",
                 $"已解锁协议：{FormatIds(session.OrbitState.UnlockedProtocols)}",
-                "进入空投配置按钮保持锁定：空投配置模块尚未接入。"
+                session.ActiveExpedition is null ? "当前可进入空投配置。" : "已有进行中的远征，不能重复创建。"
             })));
 
         return rows;

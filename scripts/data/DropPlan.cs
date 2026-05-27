@@ -10,6 +10,7 @@ public sealed class DropPlan
     public Vector2I TargetCoordinate { get; set; }
     public int Seed { get; set; }
     public List<string> SelectedAwakenedUnitInstanceIds { get; } = new();
+    public List<string> SelectedMassUnitInstanceIds { get; } = new();
     public List<SelectedUnitPlatformItem> SelectedUnitPlatformItems { get; } = new();
     public List<ItemStack> SelectedStackItems { get; } = new();
     public List<string> SelectedItemInstanceIds { get; } = new();

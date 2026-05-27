@@ -9,6 +9,7 @@ public sealed class SceneRouter
     private readonly Dictionary<string, string> _scenePaths = new()
     {
         [SceneId.OrbitStation] = "res://scenes/orbit/orbit_station.tscn",
+        [SceneId.DropConfig] = "res://scenes/drop/drop_config.tscn",
         [SceneId.SurfaceExpedition] = "res://scenes/surface/surface_expedition.tscn",
         [SceneId.ReturnSummary] = "res://scenes/summary/return_summary.tscn"
     };

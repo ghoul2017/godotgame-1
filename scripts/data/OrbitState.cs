@@ -7,7 +7,6 @@ public sealed class OrbitState
     public string OrbitStateId { get; set; } = "orbit_default";
     public int SaveVersion { get; set; } = 2;
     public string InventoryId { get; set; } = "orbit_inventory_default";
-    public Dictionary<string, int> Inventory { get; } = new();
     public int Credits { get; set; }
     public List<string> UnlockedBlueprints { get; } = new();
     public List<string> UnlockedProtocols { get; } = new();
