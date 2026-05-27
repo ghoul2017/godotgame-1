@@ -363,23 +363,23 @@ assets/ui/inventory/
 
 建议资源：
 
-- `item_slot_empty.svg`
-- `item_slot_normal.svg`
-- `item_slot_selected.svg`
-- `item_slot_locked.svg`
-- `item_slot_reserved.svg`
-- `item_slot_in_transit.svg`
-- `inventory_panel_frame.svg`
-- `inventory_container_header.svg`
-- `inventory_capacity_bar.svg`
-- `inventory_weight_bar.svg`
-- `badge_input.svg`
-- `badge_output.svg`
-- `badge_construction.svg`
-- `badge_output_blocked.svg`
-- `action_transfer.svg`
-- `action_locate_source.svg`
-- `action_locate_target.svg`
+- `item_slot_empty.png`
+- `item_slot_normal.png`
+- `item_slot_selected.png`
+- `item_slot_locked.png`
+- `item_slot_reserved.png`
+- `item_slot_in_transit.png`
+- `inventory_panel_frame.png`
+- `inventory_container_header.png`
+- `inventory_capacity_bar.png`
+- `inventory_weight_bar.png`
+- `badge_input.png`
+- `badge_output.png`
+- `badge_construction.png`
+- `badge_output_blocked.png`
+- `action_transfer.png`
+- `action_locate_source.png`
+- `action_locate_target.png`
 
 ## 8. 实施顺序
 

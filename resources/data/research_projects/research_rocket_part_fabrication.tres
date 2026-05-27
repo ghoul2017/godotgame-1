@@ -13,4 +13,4 @@ CostItemCounts = Array[int]([8, 8, 3])
 CostCredits = 80
 RequiredResearchIds = Array[String](["research_basic_assembly"])
 UnlockBlueprintIds = Array[String](["blueprint_rocket_part_fabrication"])
-IconPath = "res://assets/ui/orbit/research/research_rocket_part_fabrication.svg"
+IconPath = "res://assets/ui/orbit/research/research_rocket_part_fabrication.png"

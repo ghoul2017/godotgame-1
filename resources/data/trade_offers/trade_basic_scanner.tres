@@ -14,4 +14,4 @@ CostCredits = 35
 RewardItemIds = Array[String](["scanner_basic"])
 RewardItemCounts = Array[int]([1])
 RequiredProtocolIds = Array[String](["protocol_basic_scanning"])
-IconPath = "res://assets/ui/orbit/trade/trade_basic_scanner.svg"
+IconPath = "res://assets/ui/orbit/trade/trade_basic_scanner.png"

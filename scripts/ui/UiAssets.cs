@@ -4,34 +4,34 @@ namespace GodotGame;
 
 public static class UiAssets
 {
-    public const string OrbitBackground = "res://assets/ui/orbit/backgrounds/orbit_station_command_deck.svg";
-    public const string SurfaceBackground = "res://assets/ui/backgrounds/surface_expedition_background.svg";
-    public const string SummaryBackground = "res://assets/ui/backgrounds/return_summary_background.svg";
+    public const string OrbitBackground = "res://assets/ui/orbit/backgrounds/orbit_station_command_deck.png";
+    public const string SurfaceBackground = "res://assets/ui/backgrounds/surface_expedition_background.png";
+    public const string SummaryBackground = "res://assets/ui/backgrounds/return_summary_background.png";
 
-    public const string IconInventory = "res://assets/ui/icons/tab_inventory.svg";
-    public const string IconTrade = "res://assets/ui/icons/tab_trade.svg";
-    public const string IconResearch = "res://assets/ui/icons/tab_research.svg";
-    public const string IconCharacters = "res://assets/ui/icons/tab_characters.svg";
-    public const string IconDrop = "res://assets/ui/icons/tab_drop.svg";
-    public const string IconCargo = "res://assets/ui/icons/summary_cargo.svg";
-    public const string IconLoss = "res://assets/ui/icons/summary_loss.svg";
-    public const string IconDiscovery = "res://assets/ui/icons/summary_discovery.svg";
-    public const string IconCommand = "res://assets/ui/icons/surface_command.svg";
-    public const string IconMinimap = "res://assets/ui/icons/surface_minimap.svg";
+    public const string IconInventory = "res://assets/ui/icons/tab_inventory.png";
+    public const string IconTrade = "res://assets/ui/icons/tab_trade.png";
+    public const string IconResearch = "res://assets/ui/icons/tab_research.png";
+    public const string IconCharacters = "res://assets/ui/icons/tab_characters.png";
+    public const string IconDrop = "res://assets/ui/icons/tab_drop.png";
+    public const string IconCargo = "res://assets/ui/icons/summary_cargo.png";
+    public const string IconLoss = "res://assets/ui/icons/summary_loss.png";
+    public const string IconDiscovery = "res://assets/ui/icons/summary_discovery.png";
+    public const string IconCommand = "res://assets/ui/icons/surface_command.png";
+    public const string IconMinimap = "res://assets/ui/icons/surface_minimap.png";
 
-    public const string OrbitCategoryAll = "res://assets/ui/orbit/categories/category_all.svg";
-    public const string OrbitCategoryMineral = "res://assets/ui/orbit/categories/category_mineral.svg";
-    public const string OrbitCategoryMaterial = "res://assets/ui/orbit/categories/category_material.svg";
-    public const string OrbitCategoryEquipment = "res://assets/ui/orbit/categories/category_equipment.svg";
-    public const string OrbitCategoryChip = "res://assets/ui/orbit/categories/category_chip.svg";
-    public const string OrbitCategoryUnitPlatform = "res://assets/ui/orbit/categories/category_unit_platform.svg";
-    public const string OrbitCategoryBlueprint = "res://assets/ui/orbit/categories/category_blueprint.svg";
-    public const string OrbitCategoryKeyItem = "res://assets/ui/orbit/categories/category_key_item.svg";
-    public const string OrbitIconCredits = "res://assets/ui/orbit/status/credits.svg";
-    public const string OrbitIconAvailable = "res://assets/ui/orbit/status/available.svg";
-    public const string OrbitIconCompleted = "res://assets/ui/orbit/status/completed.svg";
-    public const string OrbitIconInsufficient = "res://assets/ui/orbit/status/insufficient.svg";
-    public const string OrbitIconLocked = "res://assets/ui/orbit/status/locked.svg";
+    public const string OrbitCategoryAll = "res://assets/ui/orbit/categories/category_all.png";
+    public const string OrbitCategoryMineral = "res://assets/ui/orbit/categories/category_mineral.png";
+    public const string OrbitCategoryMaterial = "res://assets/ui/orbit/categories/category_material.png";
+    public const string OrbitCategoryEquipment = "res://assets/ui/orbit/categories/category_equipment.png";
+    public const string OrbitCategoryChip = "res://assets/ui/orbit/categories/category_chip.png";
+    public const string OrbitCategoryUnitPlatform = "res://assets/ui/orbit/categories/category_unit_platform.png";
+    public const string OrbitCategoryBlueprint = "res://assets/ui/orbit/categories/category_blueprint.png";
+    public const string OrbitCategoryKeyItem = "res://assets/ui/orbit/categories/category_key_item.png";
+    public const string OrbitIconCredits = "res://assets/ui/orbit/status/credits.png";
+    public const string OrbitIconAvailable = "res://assets/ui/orbit/status/available.png";
+    public const string OrbitIconCompleted = "res://assets/ui/orbit/status/completed.png";
+    public const string OrbitIconInsufficient = "res://assets/ui/orbit/status/insufficient.png";
+    public const string OrbitIconLocked = "res://assets/ui/orbit/status/locked.png";
     public const string OrbitAudioTabSwitch = "res://assets/audio/ui/orbit/tab_switch.wav";
     public const string OrbitAudioSelect = "res://assets/audio/ui/orbit/list_select.wav";
     public const string OrbitAudioSuccess = "res://assets/audio/ui/orbit/confirm_success.wav";
@@ -39,38 +39,37 @@ public static class UiAssets
     public const string OrbitAudioDialogOpen = "res://assets/audio/ui/orbit/dialog_open.wav";
     public const string OrbitAudioDialogClose = "res://assets/audio/ui/orbit/dialog_close.wav";
 
-    public const string ButtonPrimary = "res://assets/ui/orbit/buttons/button_normal.svg";
-    public const string ButtonHover = "res://assets/ui/orbit/buttons/button_hover.svg";
-    public const string ButtonPressed = "res://assets/ui/orbit/buttons/button_pressed.svg";
-    public const string ButtonDisabled = "res://assets/ui/orbit/buttons/button_disabled.svg";
-    public const string PanelFrame = "res://assets/ui/orbit/panels/orbit_panel_frame.svg";
-    public const string OrbitListRow = "res://assets/ui/orbit/panels/orbit_list_row.svg";
+    public const string ButtonPrimary = "res://assets/ui/orbit/buttons/button_normal.png";
+    public const string ButtonHover = "res://assets/ui/orbit/buttons/button_hover.png";
+    public const string ButtonPressed = "res://assets/ui/orbit/buttons/button_pressed.png";
+    public const string ButtonDisabled = "res://assets/ui/orbit/buttons/button_disabled.png";
+    public const string PanelFrame = "res://assets/ui/orbit/panels/orbit_panel_frame.png";
+    public const string OrbitListRow = "res://assets/ui/orbit/panels/orbit_list_row.png";
 
     public static Texture2D? LoadTexture(string path)
     {
-        if (!path.EndsWith(".svg", System.StringComparison.OrdinalIgnoreCase))
+        if (ResourceLoader.Exists(path, nameof(Texture2D)))
         {
-            Texture2D? texture = ResourceLoader.Load<Texture2D>(path);
-            if (texture is not null)
+            Texture2D? importedTexture = ResourceLoader.Load<Texture2D>(path);
+            if (importedTexture is not null)
             {
-                return texture;
+                return importedTexture;
             }
         }
 
-        if (path.EndsWith(".svg", System.StringComparison.OrdinalIgnoreCase))
+        if (IsBitmapPath(path) && !HasImportMetadata(path))
         {
-            string svgText = FileAccess.GetFileAsString(path);
-            if (!string.IsNullOrEmpty(svgText))
+            Texture2D? bitmapTexture = LoadBitmapTexture(path);
+            if (bitmapTexture is not null)
             {
-                Image image = new();
-                Error error = image.LoadSvgFromString(svgText, 1.0f);
-                if (error == Error.Ok)
-                {
-                    return ImageTexture.CreateFromImage(image);
-                }
-
-                GD.PushWarning($"[UI] SVG 资源解析失败：{path}，错误：{error}");
+                return bitmapTexture;
             }
+        }
+
+        Texture2D? texture = ResourceLoader.Load<Texture2D>(path);
+        if (texture is not null)
+        {
+            return texture;
         }
 
         GD.PushWarning($"[UI] 资源加载失败：{path}");
@@ -153,6 +152,37 @@ public static class UiAssets
             TextureMarginBottom = margins.Bottom
         };
         return styleBox;
+    }
+
+    private static bool IsBitmapPath(string path)
+    {
+        return path.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".jpg", System.StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".jpeg", System.StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".webp", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasImportMetadata(string path)
+    {
+        return FileAccess.FileExists($"{path}.import");
+    }
+
+    private static Texture2D? LoadBitmapTexture(string path)
+    {
+        if (!FileAccess.FileExists(path))
+        {
+            return null;
+        }
+
+        Image image = new();
+        Error error = image.Load(path);
+        if (error != Error.Ok)
+        {
+            GD.PushWarning($"[UI] 位图资源解析失败：{path}，错误：{error}");
+            return null;
+        }
+
+        return ImageTexture.CreateFromImage(image);
     }
 
     private readonly record struct SideMargins(float Left, float Top, float Right, float Bottom);

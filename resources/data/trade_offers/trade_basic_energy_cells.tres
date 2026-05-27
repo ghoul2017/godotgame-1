@@ -11,4 +11,4 @@ Description = "从轨道补给商购买稳定能源块，用于空投准备、�
 CostCredits = 40
 RewardItemIds = Array[String](["energy_cell"])
 RewardItemCounts = Array[int]([8])
-IconPath = "res://assets/ui/orbit/trade/trade_basic_energy_cells.svg"
+IconPath = "res://assets/ui/orbit/trade/trade_basic_energy_cells.png"

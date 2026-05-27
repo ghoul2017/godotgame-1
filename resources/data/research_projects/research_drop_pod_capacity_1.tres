@@ -14,4 +14,4 @@ CostCredits = 100
 RequiredResearchIds = Array[String](["research_basic_scanning_protocol"])
 UnlockBlueprintIds = Array[String](["blueprint_drop_pod_capacity_1"])
 UnlockProtocolIds = Array[String](["protocol_drop_mass_audit_1"])
-IconPath = "res://assets/ui/orbit/research/research_drop_pod_capacity_1.svg"
+IconPath = "res://assets/ui/orbit/research/research_drop_pod_capacity_1.png"

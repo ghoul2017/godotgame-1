@@ -1,2 +1,2 @@
-基础 UI 主题由 scripts/ui/UiAssets.cs 在运行时创建，并实际使用 assets/ui/buttons/button_primary.svg 与 assets/ui/panels/panel_frame.svg。
+基础 UI 主题由 scripts/ui/UiAssets.cs 在运行时创建，并实际使用 assets/ui/orbit/buttons/button_normal.png、assets/ui/orbit/buttons/button_hover.png、assets/ui/orbit/buttons/button_pressed.png、assets/ui/orbit/buttons/button_disabled.png 与 assets/ui/orbit/panels/orbit_panel_frame.png。
 字体入口使用 assets/ui/fonts/default_ui_font_config.tres，后续替换正式字体时保持该路径分类。

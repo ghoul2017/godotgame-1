@@ -13,4 +13,4 @@ CostItemCounts = Array[int]([3])
 CostCredits = 90
 RewardItemIds = Array[String](["ai_chip_basic"])
 RewardItemCounts = Array[int]([1])
-IconPath = "res://assets/ui/orbit/trade/trade_ai_chip_basic.svg"
+IconPath = "res://assets/ui/orbit/trade/trade_ai_chip_basic.png"

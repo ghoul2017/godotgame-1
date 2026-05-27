@@ -12,4 +12,4 @@ CostItemIds = Array[String](["electronic_parts", "clean_data"])
 CostItemCounts = Array[int]([6, 2])
 CostCredits = 50
 UnlockProtocolIds = Array[String](["protocol_basic_scanning"])
-IconPath = "res://assets/ui/orbit/research/research_basic_scanning_protocol.svg"
+IconPath = "res://assets/ui/orbit/research/research_basic_scanning_protocol.png"

@@ -12,4 +12,4 @@ CostItemIds = Array[String](["metal", "electronic_parts"])
 CostItemCounts = Array[int]([20, 4])
 CostCredits = 30
 UnlockBlueprintIds = Array[String](["blueprint_assembler_basic"])
-IconPath = "res://assets/ui/orbit/research/research_basic_assembly.svg"
+IconPath = "res://assets/ui/orbit/research/research_basic_assembly.png"

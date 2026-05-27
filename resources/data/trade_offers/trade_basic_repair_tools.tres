@@ -13,4 +13,4 @@ CostItemCounts = Array[int]([6])
 CostCredits = 25
 RewardItemIds = Array[String](["repair_tool_basic"])
 RewardItemCounts = Array[int]([1])
-IconPath = "res://assets/ui/orbit/trade/trade_basic_repair_tools.svg"
+IconPath = "res://assets/ui/orbit/trade/trade_basic_repair_tools.png"

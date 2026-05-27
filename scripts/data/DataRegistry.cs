@@ -140,7 +140,7 @@ public sealed class DataRegistry
             DisplayName = "废墟信号缓存",
             Description = "扫描到低功耗数据缓存，可能包含蓝图碎片或污染数据。",
             RiskLevel = 1,
-            IconPath = $"{DataAssetRoot}/events/ruin_signal_cache.svg"
+            IconPath = $"{DataAssetRoot}/events/ruin_signal_cache.png"
         };
         eventData.TriggerTags.AddRange(new[] { "ruin", "scan" });
         eventData.RewardTables.Add("early_ruin_data");
@@ -157,8 +157,8 @@ public sealed class DataRegistry
             WeightLimit = 90f,
             SlotLimit = 18,
             UnitCapacity = 4,
-            IconPath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.svg",
-            SpritePath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.svg"
+            IconPath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.png",
+            SpritePath = $"{DataAssetRoot}/drop_pods/drop_pod_single_use.png"
         };
         pod.AcceptedTags.AddRange(new[] { "mineral", "material", "tool", "weapon", "chip", "mod_part", "unit_platform", "building_module", "quest" });
         _dropPods.Add(pod.Id, pod);
@@ -256,8 +256,8 @@ public sealed class DataRegistry
             Category = category,
             SubCategory = subCategory,
             Description = description,
-            IconPath = $"{DataAssetRoot}/items/{id}.svg",
-            WorldSpritePath = $"{DataAssetRoot}/items/{id}.svg",
+            IconPath = $"{DataAssetRoot}/items/{id}.png",
+            WorldSpritePath = $"{DataAssetRoot}/items/{id}.png",
             UnitWeight = weight,
             BaseValue = value,
             MaxStack = category is "weapon" or "tool" or "ai_chip" or "data_core" ? 1 : 100
@@ -281,9 +281,9 @@ public sealed class DataRegistry
             InventoryCapacity = capacity,
             CarryWeightLimit = weightLimit,
             IsAwakenedCapable = awakened,
-            IconPath = $"{DataAssetRoot}/units/{id}.svg",
-            PortraitPath = $"{DataAssetRoot}/units/{id}.svg",
-            SpritePath = $"{DataAssetRoot}/units/{id}.svg"
+            IconPath = $"{DataAssetRoot}/units/{id}.png",
+            PortraitPath = $"{DataAssetRoot}/units/{id}.png",
+            SpritePath = $"{DataAssetRoot}/units/{id}.png"
         };
         unit.EquipmentSlots.AddRange(slots);
         unit.AvailableCommands.AddRange(new[] { "move", "hold", "gather", "repair" });
@@ -303,11 +303,11 @@ public sealed class DataRegistry
             PowerGeneration = powerGeneration,
             PowerConsumption = powerConsumption,
             StorageCapacity = storageCapacity,
-            IconPath = $"{DataAssetRoot}/buildings/{id}.svg",
-            SpritePath = $"{DataAssetRoot}/buildings/{id}.svg",
-            PreviewSpritePath = $"{DataAssetRoot}/buildings/{id}.svg",
-            ConstructionSpritePath = $"{DataAssetRoot}/buildings/{id}.svg",
-            DamagedSpritePath = $"{DataAssetRoot}/buildings/{id}.svg"
+            IconPath = $"{DataAssetRoot}/buildings/{id}.png",
+            SpritePath = $"{DataAssetRoot}/buildings/{id}.png",
+            PreviewSpritePath = $"{DataAssetRoot}/buildings/{id}.png",
+            ConstructionSpritePath = $"{DataAssetRoot}/buildings/{id}.png",
+            DamagedSpritePath = $"{DataAssetRoot}/buildings/{id}.png"
         };
         building.BuildCost.AddRange(new[] { Stack("metal", footprint.X * footprint.Y * 4), Stack("electronic_parts", 1) });
         building.FunctionTags.AddRange(tags);
@@ -337,7 +337,7 @@ public sealed class DataRegistry
             Id = id,
             DisplayName = displayName,
             Description = description,
-            IconPath = $"{DataAssetRoot}/skills/{id}.svg"
+            IconPath = $"{DataAssetRoot}/skills/{id}.png"
         };
         skill.ExperienceThresholds.AddRange(new[] { 0, 100, 260, 520, 900, 1400 });
         skill.EffectTags.AddRange(effectTags);

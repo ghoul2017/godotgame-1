@@ -607,7 +607,7 @@ public sealed class OrbitTransactionService
             Category = "矿产补给",
             Description = "从轨道补给商购买稳定能源块，用于空投准备、地表生产和火箭制造。",
             CostCredits = 40,
-            IconPath = "res://assets/ui/orbit/trade/trade_basic_energy_cells.svg"
+            IconPath = "res://assets/ui/orbit/trade/trade_basic_energy_cells.png"
         };
         energy.AddRewardItem("energy_cell", 8);
         offers.Add(energy);
@@ -619,7 +619,7 @@ public sealed class OrbitTransactionService
             Category = "工具装备",
             Description = "用基础材料换取可空投的维修工具，提升地表早期维修保障。",
             CostCredits = 25,
-            IconPath = "res://assets/ui/orbit/trade/trade_basic_repair_tools.svg"
+            IconPath = "res://assets/ui/orbit/trade/trade_basic_repair_tools.png"
         };
         repairTools.AddCostItem("metal", 6);
         repairTools.AddRewardItem("repair_tool_basic", 1);
@@ -632,7 +632,7 @@ public sealed class OrbitTransactionService
             Category = "探索工具",
             Description = "购买基础扫描器，为地表矿产点、废墟和特殊信号调查提供工具入口。",
             CostCredits = 35,
-            IconPath = "res://assets/ui/orbit/trade/trade_basic_scanner.svg"
+            IconPath = "res://assets/ui/orbit/trade/trade_basic_scanner.png"
         };
         scanner.AddCostItem("electronic_parts", 4);
         scanner.AddRewardItem("scanner_basic", 1);
@@ -646,7 +646,7 @@ public sealed class OrbitTransactionService
             Category = "单位平台",
             Description = "购买服务型量产机器人平台，后续可在空投配置中转化为远征单位。",
             CostCredits = 60,
-            IconPath = "res://assets/ui/orbit/trade/trade_service_bot_platform.svg"
+            IconPath = "res://assets/ui/orbit/trade/trade_service_bot_platform.png"
         };
         serviceBot.AddCostItem("metal", 18);
         serviceBot.AddCostItem("electronic_parts", 6);
@@ -660,7 +660,7 @@ public sealed class OrbitTransactionService
             Category = "芯片",
             Description = "购买通用 AI 芯片，用于后续觉醒者、改装和高级单位相关系统。",
             CostCredits = 90,
-            IconPath = "res://assets/ui/orbit/trade/trade_ai_chip_basic.svg"
+            IconPath = "res://assets/ui/orbit/trade/trade_ai_chip_basic.png"
         };
         aiChip.AddCostItem("clean_data", 3);
         aiChip.AddRewardItem("ai_chip_basic", 1);
@@ -680,7 +680,7 @@ public sealed class OrbitTransactionService
             Category = "建造生产",
             Description = "整理旧世界组装机资料，解锁地表基础组装机的正式建造蓝图。",
             CostCredits = 30,
-            IconPath = "res://assets/ui/orbit/research/research_basic_assembly.svg"
+            IconPath = "res://assets/ui/orbit/research/research_basic_assembly.png"
         };
         assembly.AddCostItem("metal", 20);
         assembly.AddCostItem("electronic_parts", 4);
@@ -694,7 +694,7 @@ public sealed class OrbitTransactionService
             Category = "远征协议",
             Description = "整合维修日志和能源调度策略，解锁后续野外维修效率协议。",
             CostCredits = 45,
-            IconPath = "res://assets/ui/orbit/research/research_field_repair_protocol.svg"
+            IconPath = "res://assets/ui/orbit/research/research_field_repair_protocol.png"
         };
         repair.AddCostItem("energy_cell", 4);
         repair.AddCostItem("clean_data", 2);
@@ -708,7 +708,7 @@ public sealed class OrbitTransactionService
             Category = "探索协议",
             Description = "解析废墟信号样本，解锁基础扫描协议和扫描器交易前置。",
             CostCredits = 50,
-            IconPath = "res://assets/ui/orbit/research/research_basic_scanning_protocol.svg"
+            IconPath = "res://assets/ui/orbit/research/research_basic_scanning_protocol.png"
         };
         scanning.AddCostItem("electronic_parts", 6);
         scanning.AddCostItem("clean_data", 2);
@@ -722,7 +722,7 @@ public sealed class OrbitTransactionService
             Category = "火箭工程",
             Description = "建立地表火箭部件的制造规范，解锁后续火箭制造配方蓝图。",
             CostCredits = 80,
-            IconPath = "res://assets/ui/orbit/research/research_rocket_part_fabrication.svg"
+            IconPath = "res://assets/ui/orbit/research/research_rocket_part_fabrication.png"
         };
         rocket.AddCostItem("alloy", 8);
         rocket.AddCostItem("electronic_parts", 8);
@@ -738,7 +738,7 @@ public sealed class OrbitTransactionService
             Category = "空投能力",
             Description = "优化空投舱载荷审计和结构加固规则，作为后续容量改进的正式入口。",
             CostCredits = 100,
-            IconPath = "res://assets/ui/orbit/research/research_drop_pod_capacity_1.svg"
+            IconPath = "res://assets/ui/orbit/research/research_drop_pod_capacity_1.png"
         };
         dropCapacity.AddCostItem("alloy", 6);
         dropCapacity.AddCostItem("energy_cell", 8);
