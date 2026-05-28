@@ -181,6 +181,105 @@ public sealed class SurfaceConstructionSystem
         return true;
     }
 
+    public bool TryCancelConstructionSite(
+        ExpeditionState expeditionState,
+        string constructionSiteId,
+        out List<InventoryTransfer> returnTransfers,
+        out List<GroundItemState> returnedGroundItems,
+        out string message)
+    {
+        returnTransfers = new List<InventoryTransfer>();
+        returnedGroundItems = new List<GroundItemState>();
+        if (!_session.ConstructionSites.TryGetValue(constructionSiteId, out ConstructionSiteState? constructionSite) ||
+            !_session.Inventories.TryGetValue(constructionSite.DeliveredInventoryId, out InventoryContainer? deliveredInventory))
+        {
+            message = $"找不到施工点或施工库存：{constructionSiteId}";
+            return false;
+        }
+
+        if (constructionSite.State == "completed")
+        {
+            message = "已完成建筑不能取消。";
+            constructionSite.FailureReason = message;
+            return false;
+        }
+
+        if (constructionSite.State == "cancelled")
+        {
+            message = "施工点已经取消。";
+            constructionSite.FailureReason = message;
+            return false;
+        }
+
+        InventoryContainer? dropCargo = !string.IsNullOrEmpty(expeditionState.DropPodCargoInventoryId) &&
+            _session.Inventories.TryGetValue(expeditionState.DropPodCargoInventoryId, out InventoryContainer? foundDropCargo)
+                ? foundDropCargo
+                : null;
+        foreach (ItemStack stack in deliveredInventory.ItemStacks.ToList())
+        {
+            int remaining = stack.Count;
+            if (remaining <= 0)
+            {
+                continue;
+            }
+
+            if (dropCargo is not null && dropCargo.InventoryId != deliveredInventory.InventoryId)
+            {
+                InventoryTransferResult returnResult = deliveredInventory.TransferTo(
+                    dropCargo,
+                    stack.ItemId,
+                    remaining,
+                    _registry,
+                    "construction_cancel_return",
+                    expeditionState.ExpeditionId);
+                if (returnResult.IsSuccess && returnResult.Transfer is not null)
+                {
+                    _session.InventoryTransfers.Add(returnResult.Transfer);
+                    returnTransfers.Add(returnResult.Transfer);
+                    AddReturnLogisticsOrder(expeditionState, returnResult.Transfer, deliveredInventory, dropCargo, constructionSite.ConstructionSiteId);
+                    remaining = 0;
+                }
+            }
+
+            if (remaining <= 0)
+            {
+                continue;
+            }
+
+            if (!deliveredInventory.RemoveStack(stack.ItemId, remaining))
+            {
+                message = $"取消施工返还失败：{stack.ItemId}";
+                constructionSite.FailureReason = message;
+                return false;
+            }
+
+            GroundItemState groundItem = CreateReturnedGroundItem(expeditionState, constructionSite, stack.ItemId, remaining);
+            returnedGroundItems.Add(groundItem);
+            InventoryTransfer transfer = new()
+            {
+                TransferId = Guid.NewGuid().ToString("N"),
+                FromInventoryId = deliveredInventory.InventoryId,
+                ToInventoryId = $"ground_item:{groundItem.GroundItemStateId}",
+                ItemId = stack.ItemId,
+                Count = remaining,
+                Reason = "construction_cancel_drop",
+                ExpeditionId = expeditionState.ExpeditionId
+            };
+            _session.InventoryTransfers.Add(transfer);
+            returnTransfers.Add(transfer);
+            AddReturnLogisticsOrder(expeditionState, transfer, deliveredInventory, null, constructionSite.ConstructionSiteId, groundItem);
+        }
+
+        constructionSite.State = "cancelled";
+        constructionSite.ConstructionProgress = 0f;
+        constructionSite.FailureReason = string.Empty;
+        message = returnTransfers.Count == 0
+            ? $"施工点已取消：{constructionSite.BuildingId}，无材料需要返还"
+            : $"施工点已取消：{constructionSite.BuildingId}，返还材料 {returnTransfers.Count} 项";
+        GD.Print($"[建造] {message}");
+        return true;
+    }
+
     public bool TryRepairBuilding(
         ExpeditionState expeditionState,
         string buildingInstanceId,
@@ -714,6 +813,58 @@ public sealed class SurfaceConstructionSystem
         return inventory;
     }
 
+    private void AddReturnLogisticsOrder(
+        ExpeditionState expeditionState,
+        InventoryTransfer transfer,
+        InventoryContainer sourceInventory,
+        InventoryContainer? targetInventory,
+        string constructionSiteId,
+        GroundItemState? groundItem = null)
+    {
+        ItemLocation targetLocation = targetInventory is not null
+            ? ItemLocation.FromInventory(targetInventory.OwnerType, targetInventory.InventoryId, targetInventory.OwnerId)
+            : new ItemLocation
+            {
+                LocationType = "ground_item",
+                GroundItemStateId = groundItem?.GroundItemStateId ?? string.Empty,
+                MapPosition = groundItem?.Position ?? Vector2I.Zero
+            };
+        LogisticsOrderState order = new()
+        {
+            LogisticsOrderId = Guid.NewGuid().ToString("N"),
+            ExpeditionId = expeditionState.ExpeditionId,
+            ItemId = transfer.ItemId,
+            Count = transfer.Count,
+            SourceLocation = ItemLocation.FromInventory("construction_site", sourceInventory.InventoryId, constructionSiteId),
+            TargetLocation = targetLocation,
+            State = "completed",
+            CreatedBy = transfer.Reason
+        };
+        _session.LogisticsOrders[order.LogisticsOrderId] = order;
+        expeditionState.LogisticsOrderIds.Add(order.LogisticsOrderId);
+    }
+
+    private GroundItemState CreateReturnedGroundItem(ExpeditionState expeditionState, ConstructionSiteState constructionSite, string itemId, int count)
+    {
+        string groundItemId = UniqueGroundItemId(expeditionState);
+        GroundItemState groundItem = new()
+        {
+            GroundItemStateId = groundItemId,
+            Position = constructionSite.Position + new Vector2I(34, 28),
+            Stack = new ItemStack
+            {
+                ItemId = itemId,
+                Count = count
+            },
+            SourceType = "construction_cancel",
+            SourceId = constructionSite.ConstructionSiteId,
+            CreatedAtRunTime = Time.GetUnixTimeFromSystem()
+        };
+        _session.GroundItems[groundItem.GroundItemStateId] = groundItem;
+        expeditionState.GroundItemStateIds.Add(groundItem.GroundItemStateId);
+        return groundItem;
+    }
+
     private bool CanUnitRepair(ExpeditionState expeditionState, string unitInstanceId)
     {
         if (!expeditionState.ActiveUnitInstanceIds.Contains(unitInstanceId) ||
@@ -819,6 +970,12 @@ public sealed class SurfaceConstructionSystem
     private string UniqueInventoryId(string baseId)
     {
         return UniqueId(baseId, _session.Inventories.ContainsKey);
+    }
+
+    private string UniqueGroundItemId(ExpeditionState expeditionState)
+    {
+        string baseId = $"ground_item_{expeditionState.ExpeditionId}_{expeditionState.GroundItemStateIds.Count + 1}";
+        return UniqueId(baseId, _session.GroundItems.ContainsKey);
     }
 
     private static string UniqueId(string baseId, Func<string, bool> exists)

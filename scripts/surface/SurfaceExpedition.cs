@@ -460,7 +460,10 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         AddCommandButton(commandPanel, "取消", UiAssets.IconCommand, () =>
         {
-            ClearSelection();
+            if (!CancelSelectedConstructionSite())
+            {
+                ClearSelection();
+            }
         });
         RefreshCommandButtons();
     }
@@ -736,6 +739,44 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     {
         _selectedConstructionSiteId = string.Empty;
         _selectedBuildingInstanceId = string.Empty;
+    }
+
+    private bool CancelSelectedConstructionSite()
+    {
+        if (string.IsNullOrEmpty(_selectedConstructionSiteId))
+        {
+            return false;
+        }
+
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null)
+        {
+            return false;
+        }
+
+        string constructionSiteId = _selectedConstructionSiteId;
+        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        if (!constructionSystem.TryCancelConstructionSite(
+                expeditionState,
+                constructionSiteId,
+                out List<InventoryTransfer> _,
+                out List<GroundItemState> _,
+                out string message))
+        {
+            RecordTargetCommand(expeditionState, "build", "construction_site", constructionSiteId, ConstructionSitePosition(gameRoot.Session, constructionSiteId), "failed", message);
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(message);
+            return true;
+        }
+
+        RecordTargetCommand(expeditionState, "build", "construction_site", constructionSiteId, ConstructionSitePosition(gameRoot.Session, constructionSiteId), "cancelled", string.Empty);
+        SetMessage(message);
+        ClearStructureSelection();
+        RefreshSelectionUi();
+        RefreshCommandButtons();
+        RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
+        return true;
     }
 
     private void IssueMoveCommand(Vector2 targetPosition)
@@ -1088,7 +1129,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         foreach (string constructionSiteId in expeditionState.ConstructionSiteIds)
         {
             if (!session.ConstructionSites.TryGetValue(constructionSiteId, out ConstructionSiteState? constructionSite) ||
-                constructionSite.State == "completed" ||
+                !IsActiveConstructionSite(constructionSite) ||
                 !registry.TryGetBuilding(constructionSite.BuildingId, out BuildingData? buildingData) ||
                 buildingData is null)
             {
@@ -1308,7 +1349,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         foreach (string siteId in expeditionState.ConstructionSiteIds)
         {
             if (!session.ConstructionSites.TryGetValue(siteId, out ConstructionSiteState? site) ||
-                site.State == "completed")
+                !IsActiveConstructionSite(site))
             {
                 continue;
             }
@@ -1495,7 +1536,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         return expeditionState.ConstructionSiteIds
             .Select(siteId => session.ConstructionSites.TryGetValue(siteId, out ConstructionSiteState? site) ? site : null)
-            .Where(site => site is not null && site.State != "completed")
+            .Where(site => site is not null && IsActiveConstructionSite(site))
             .OrderBy(site => new Vector2(site!.Position.X, site.Position.Y).DistanceTo(worldPosition))
             .FirstOrDefault(site => new Vector2(site!.Position.X, site.Position.Y).DistanceTo(worldPosition) <= StructureHitRadius)
             ?.ConstructionSiteId ?? string.Empty;
@@ -1523,6 +1564,11 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         return session.ConstructionSites.TryGetValue(constructionSiteId, out ConstructionSiteState? site)
             ? new Vector2(site.Position.X, site.Position.Y)
             : Vector2.Zero;
+    }
+
+    private static bool IsActiveConstructionSite(ConstructionSiteState site)
+    {
+        return site.State is not ("completed" or "cancelled");
     }
 
     private static Vector2 BuildingPosition(GameSession session, string buildingInstanceId)
@@ -1760,6 +1806,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             expeditionState is null ||
             string.IsNullOrEmpty(_selectedConstructionSiteId) ||
             !gameRoot.Session.ConstructionSites.TryGetValue(_selectedConstructionSiteId, out ConstructionSiteState? site) ||
+            !IsActiveConstructionSite(site) ||
             !gameRoot.DataRegistry.TryGetBuilding(site.BuildingId, out BuildingData? buildingData) ||
             buildingData is null)
         {
@@ -2045,6 +2092,39 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             return;
         }
 
+        ApplySelection(new[] { gatherUnit.UnitInstanceId });
+        Vector2I cancelPosition = expeditionState.DropPosition + new Vector2I(520, 260);
+        CreateConstructionSiteAtPosition(new Vector2(cancelPosition.X, cancelPosition.Y), "storage_box");
+        string cancelSiteId = FindConstructionSiteAt(new Vector2(cancelPosition.X, cancelPosition.Y));
+        string cancelDeliveryMessage = string.Empty;
+        if (string.IsNullOrEmpty(cancelSiteId) ||
+            !constructionSystem.TryDeliverConstructionMaterials(expeditionState, cancelSiteId, out cancelDeliveryMessage))
+        {
+            GD.PushError($"[调试] 经济自检失败：取消施工预置失败：{cancelDeliveryMessage}");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        int metalBeforeCancel = CountExpeditionStack(gameRoot.Session, expeditionState, "metal");
+        int scrapBeforeCancel = CountExpeditionStack(gameRoot.Session, expeditionState, "scrap");
+        int transfersBeforeCancel = gameRoot.Session.InventoryTransfers.Count;
+        int logisticsBeforeCancel = expeditionState.LogisticsOrderIds.Count;
+        SelectStructure(cancelSiteId, string.Empty);
+        if (!CancelSelectedConstructionSite() ||
+            !gameRoot.Session.ConstructionSites.TryGetValue(cancelSiteId, out ConstructionSiteState? cancelledSite) ||
+            cancelledSite.State != "cancelled" ||
+            !_selectionLabel!.Text.Contains("未选择单位") ||
+            CountExpeditionStack(gameRoot.Session, expeditionState, "metal") != metalBeforeCancel ||
+            CountExpeditionStack(gameRoot.Session, expeditionState, "scrap") != scrapBeforeCancel ||
+            gameRoot.Session.InventoryTransfers.Count <= transfersBeforeCancel ||
+            expeditionState.LogisticsOrderIds.Count <= logisticsBeforeCancel ||
+            !HasLogisticsOrderCreatedBy(gameRoot.Session, expeditionState, "construction_cancel_return"))
+        {
+            GD.PushError("[调试] 经济自检失败：取消施工未返还材料或未清理选择");
+            QuitSelfTestFailure();
+            return;
+        }
+
         if (!BuildForSelfTest(expeditionState, constructionSystem, "assembler_basic", expeditionState.DropPosition + new Vector2I(90, 210), gatherUnit.UnitInstanceId, out BuildingInstance assembler, out string assemblerMessage))
         {
             GD.PushError($"[调试] 经济自检失败：{assemblerMessage}");
@@ -2088,6 +2168,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         int repairRecordsBefore = expeditionState.RepairRecords.Count;
         assembler.Durability = System.Math.Max(0, assembler.MaxDurability - 60);
+        ApplySelection(new[] { gatherUnit.UnitInstanceId });
         RepairBuilding(assembler.BuildingInstanceId);
         RepairRecord? repairRecord = expeditionState.RepairRecords.LastOrDefault(record => record.TargetId == assembler.BuildingInstanceId);
         if (repairRecord is null ||
@@ -2145,6 +2226,36 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             .LastOrDefault(building => building is not null &&
                 building.BuildingId == buildingId &&
                 building.Position == position);
+    }
+
+    private static int CountExpeditionStack(GameSession session, ExpeditionState expeditionState, string itemId)
+    {
+        int count = 0;
+        foreach (string inventoryId in expeditionState.LocationInventoryIds.Distinct())
+        {
+            if (session.Inventories.TryGetValue(inventoryId, out InventoryContainer? inventory))
+            {
+                count += inventory.GetItemCount(itemId);
+            }
+        }
+
+        foreach (string groundItemId in expeditionState.GroundItemStateIds)
+        {
+            if (session.GroundItems.TryGetValue(groundItemId, out GroundItemState? groundItem) &&
+                groundItem.Stack.ItemId == itemId)
+            {
+                count += groundItem.Stack.Count;
+            }
+        }
+
+        return count;
+    }
+
+    private static bool HasLogisticsOrderCreatedBy(GameSession session, ExpeditionState expeditionState, string createdBy)
+    {
+        return expeditionState.LogisticsOrderIds.Any(orderId =>
+            session.LogisticsOrders.TryGetValue(orderId, out LogisticsOrderState? order) &&
+            order.CreatedBy == createdBy);
     }
 
     private static bool BuildForSelfTest(
