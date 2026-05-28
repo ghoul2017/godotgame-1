@@ -14,4 +14,5 @@ public partial class RecipeData : Resource
     public List<string> RequiredBuildingTags { get; } = new();
     public string RequiredBlueprintId { get; set; } = string.Empty;
     public string OperatorSkillId { get; set; } = string.Empty;
+    public string IconPath { get; set; } = string.Empty;
 }

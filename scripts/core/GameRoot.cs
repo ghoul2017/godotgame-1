@@ -322,6 +322,12 @@ public partial class GameRoot : Control
             return;
         }
 
+        if (payload.DebugEnabled)
+        {
+            GD.PushWarning("[结算] 调试结算只允许预览，已拒绝写回轨道状态");
+            return;
+        }
+
         if (!payload.DebugEnabled)
         {
             if (payload.FromScene != SceneId.SurfaceExpedition ||
@@ -509,6 +515,7 @@ public partial class GameRoot : Control
         AddBootstrapInstance(orbitInventory, "servo_mod_basic_001", "servo_mod_basic", 100, "standard");
 
         EnsureUnitInstance("unit_dexter", "dexter", "灵巧", true, _session.OrbitState.InventoryId);
+        EnsureUnitInstance("unit_service_bot_01", "service_bot", "服务型量产机器人 01", false, string.Empty);
         EnsureUnitInstance("unit_drone_scout_01", "light_cargo_drone", "侦察无人机 01", false, string.Empty);
         EnsureUnitInstance("unit_drone_scout_02", "light_cargo_drone", "侦察无人机 02", false, string.Empty);
         if (!_session.OrbitState.AwakenedUnits.Contains("unit_dexter"))
@@ -516,6 +523,7 @@ public partial class GameRoot : Control
             _session.OrbitState.AwakenedUnits.Add("unit_dexter");
         }
 
+        AddAvailableMassUnit("unit_service_bot_01");
         AddAvailableMassUnit("unit_drone_scout_01");
         AddAvailableMassUnit("unit_drone_scout_02");
     }

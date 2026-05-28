@@ -14,6 +14,7 @@ public sealed class DataRegistry
     private readonly Dictionary<string, EventData> _events = new();
     private readonly Dictionary<string, DropPodData> _dropPods = new();
     private readonly Dictionary<string, KnownCoordinate> _knownCoordinates = new();
+    private readonly Dictionary<string, MineralDepositData> _mineralDeposits = new();
 
     public IReadOnlyDictionary<string, ItemData> Items => _items;
     public IReadOnlyDictionary<string, UnitData> Units => _units;
@@ -23,6 +24,7 @@ public sealed class DataRegistry
     public IReadOnlyDictionary<string, EventData> Events => _events;
     public IReadOnlyDictionary<string, DropPodData> DropPods => _dropPods;
     public IReadOnlyDictionary<string, KnownCoordinate> KnownCoordinates => _knownCoordinates;
+    public IReadOnlyDictionary<string, MineralDepositData> MineralDeposits => _mineralDeposits;
 
     public DataLoadReport LoadBuiltInDefinitions()
     {
@@ -34,6 +36,7 @@ public sealed class DataRegistry
         _events.Clear();
         _dropPods.Clear();
         _knownCoordinates.Clear();
+        _mineralDeposits.Clear();
 
         AddItems();
         AddUnits();
@@ -43,6 +46,7 @@ public sealed class DataRegistry
         AddEvents();
         AddDropPods();
         AddKnownCoordinates();
+        AddMineralDeposits();
 
         return ValidateDefinitions();
     }
@@ -65,6 +69,11 @@ public sealed class DataRegistry
     public bool TryGetDropPod(string dropPodId, out DropPodData? dropPodData)
     {
         return _dropPods.TryGetValue(dropPodId, out dropPodData);
+    }
+
+    public bool TryGetMineralDeposit(string mineralDepositId, out MineralDepositData? mineralDepositData)
+    {
+        return _mineralDeposits.TryGetValue(mineralDepositId, out mineralDepositData);
     }
 
     public bool TryGetKnownCoordinate(string coordinateId, out KnownCoordinate? coordinate)
@@ -109,30 +118,34 @@ public sealed class DataRegistry
 
     private void AddUnits()
     {
-        AddUnit("dexter", "灵巧", "觉醒的服务型家政机器人，擅长设施互动和多类装备使用。", "hero_service", "ground", 120, 100, 12, 24f, true, "tool", "weapon", "utility");
-        AddUnit("service_bot", "服务型量产机", "可执行建造、维修和基础战斗任务的民用人型平台。", "worker", "ground", 90, 80, 8, 18f, false, "tool", "weapon");
-        AddUnit("light_cargo_drone", "轻型运输无人机", "快速侦察和轻量搬运平台，适合早期扩展视野。", "scout_transport", "air", 55, 70, 6, 12f, false, "cargo");
-        AddUnit("heavy_cargo_spider", "重型运输机器人", "多足重载平台，可作为移动掩体和大型设备载体。", "heavy_transport", "ground", 180, 120, 14, 42f, false, "heavy", "cargo");
-        AddUnit("rockbreaker", "碎石", "矿工觉醒者，重型运输特化，熟悉废土矿脉和旧设施。", "hero_miner", "ground", 210, 110, 12, 38f, true, "mining", "heavy");
+        AddUnit("dexter", "灵巧", "觉醒的服务型家政机器人，擅长设施互动和多类装备使用。", "awakened", "ground_humanoid", 120, 100, 12, 70f, true, "weapon", "tool", "chip", "mod_part");
+        AddUnit("service_bot", "服务型量产机器人", "可执行建造、维修和基础战斗任务的民用人型平台。", "mass_unit", "ground_humanoid", 90, 80, 10, 60f, false, "weapon", "tool", "mod_part");
+        AddUnit("light_cargo_drone", "轻型运输无人机", "快速侦察和轻量搬运平台，适合早期扩展视野。", "mass_unit", "flying", 55, 90, 8, 40f, false, "tool_light", "sensor");
+        AddUnit("heavy_cargo_spider", "重型运输机器人", "多足重载平台，可作为移动掩体和大型设备载体。", "mass_unit", "ground_heavy", 220, 130, 20, 180f, false, "tool_heavy", "weapon_platform", "armor", "mod_part");
+        AddUnit("rockbreaker", "碎石", "矿工觉醒者，重型运输特化，熟悉废土矿脉和旧设施。", "awakened", "ground_heavy", 260, 140, 20, 200f, true, "tool_heavy", "weapon_platform", "chip", "mod_part");
     }
 
     private void AddBuildings()
     {
-        AddBuilding("repair_station", "维修站", "提供单位维修和工具维护的基础设施。", new Vector2I(2, 2), 18f, 0, 8, 12, "repair");
-        AddBuilding("assembler_basic", "基础组装机", "执行早期材料转换和平台组装。", new Vector2I(3, 2), 24f, 0, 12, 8, "crafting");
-        AddBuilding("storage_box", "仓库", "保存地表采集和生产物资的标准库存节点。", new Vector2I(2, 2), 14f, 0, 2, 24, "storage");
-        AddBuilding("fluid_tank", "储罐", "保存液体燃料和可压缩资源的设施接口。", new Vector2I(2, 2), 20f, 0, 3, 10, "fluid_storage");
-        AddBuilding("solar_panel", "太阳能板", "稳定但受环境影响的基础发电设施。", new Vector2I(2, 2), 16f, 14, 0, 0, "power");
-        AddBuilding("rocket_pad", "火箭组装坪", "固定大型建筑，用于组装、装载并发射回归火箭。", new Vector2I(5, 5), 90f, 0, 24, 18, "rocket", "cargo");
+        AddBuilding("repair_station", "维修站", "提供单位维修和工具维护的基础设施。", new Vector2I(2, 2), new[] { Stack("metal", 16), Stack("electronic_parts", 2) }, 18f, 0, 4, 8, string.Empty, new string[] { }, "repair", "service");
+        AddBuilding("assembler_basic", "基础组装机", "执行早期材料转换和平台组装。", new Vector2I(3, 2), new[] { Stack("metal", 24), Stack("electronic_parts", 4) }, 24f, 0, 8, 8, "blueprint_assembler_basic", new[] { "recycle_scrap_to_metal", "craft_electronic_parts", "craft_alloy", "craft_service_platform", "craft_light_cargo_drone_platform", "craft_heavy_cargo_spider_platform" }, "crafting", "production");
+        AddBuilding("storage_box", "仓库", "保存地表采集和生产物资的标准库存节点。", new Vector2I(2, 2), new[] { Stack("metal", 12), Stack("scrap", 8) }, 14f, 0, 1, 32, string.Empty, new string[] { }, "storage");
+        AddBuilding("solar_panel", "太阳能板", "稳定但受环境影响的基础发电设施。", new Vector2I(2, 2), new[] { Stack("metal", 10), Stack("silicon", 4), Stack("electronic_parts", 1) }, 16f, 14, 0, 0, string.Empty, new string[] { }, "power_generation", "solar");
+        AddBuilding("wind_turbine", "风力发电机", "波动发电，作为太阳能互补。", new Vector2I(2, 2), new[] { Stack("metal", 14), Stack("electronic_parts", 2) }, 20f, 10, 0, 0, string.Empty, new string[] { }, "power_generation", "wind");
+        AddBuilding("battery_bank", "电池组", "储存电力，缓冲短时缺电。", new Vector2I(2, 2), new[] { Stack("metal", 12), Stack("energy_cell", 4), Stack("electronic_parts", 2) }, 18f, 0, 0, 120, string.Empty, new string[] { }, "power_storage", "battery");
+        AddBuilding("fluid_tank", "储罐", "保存能源介质和后续液体接口，本阶段可存放能源块相关补给。", new Vector2I(2, 2), new[] { Stack("metal", 16), Stack("alloy", 2) }, 18f, 0, 1, 20, string.Empty, new string[] { }, "storage", "fluid_storage");
+        AddBuilding("rocket_pad", "火箭组装坪", "固定大型建筑，用于组装、装载并发射回归火箭。", new Vector2I(5, 5), new[] { Stack("metal", 40), Stack("alloy", 10), Stack("electronic_parts", 8) }, 90f, 0, 18, 18, "blueprint_rocket_part_fabrication", new[] { "craft_rocket_part" }, "rocket", "production");
     }
 
     private void AddRecipes()
     {
-        AddRecipe("recycle_scrap_to_metal", "废料回收金属", new[] { Stack("scrap", 4) }, new[] { Stack("metal", 3) }, 8f, 2, "crafting", "engineering");
-        AddRecipe("craft_electronic_parts", "制造电子元件", new[] { Stack("metal", 2), Stack("silicon", 3) }, new[] { Stack("electronic_parts", 1) }, 12f, 5, "crafting", "engineering");
-        AddRecipe("craft_alloy", "制造合金", new[] { Stack("metal", 3), Stack("rare_earth", 1) }, new[] { Stack("alloy", 1) }, 14f, 7, "crafting", "engineering");
-        AddRecipe("craft_service_platform", "制造基础量产机平台", new[] { Stack("metal", 8), Stack("electronic_parts", 3), Stack("energy_cell", 2) }, new[] { Stack("service_bot_platform", 1) }, 24f, 10, "crafting", "engineering");
-        AddRecipe("craft_rocket_part", "制造火箭部件", new[] { Stack("metal", 10), Stack("alloy", 4), Stack("electronic_parts", 2), Stack("energy_cell", 3) }, new[] { Stack("rocket_part", 1) }, 36f, 16, "rocket", "engineering");
+        AddRecipe("recycle_scrap_to_metal", "废料回收金属", new[] { Stack("scrap", 4) }, new[] { Stack("metal", 3) }, 8f, 2, "crafting", string.Empty, "engineering");
+        AddRecipe("craft_electronic_parts", "制造电子元件", new[] { Stack("metal", 2), Stack("silicon", 3) }, new[] { Stack("electronic_parts", 1) }, 12f, 5, "crafting", "blueprint_assembler_basic", "engineering");
+        AddRecipe("craft_alloy", "制造合金", new[] { Stack("metal", 3), Stack("rare_earth", 1) }, new[] { Stack("alloy", 1) }, 14f, 7, "crafting", "blueprint_assembler_basic", "engineering");
+        AddRecipe("craft_service_platform", "制造服务型平台", new[] { Stack("metal", 8), Stack("electronic_parts", 3), Stack("energy_cell", 2) }, new[] { Stack("service_bot_platform", 1) }, 24f, 10, "crafting", "blueprint_assembler_basic", "engineering");
+        AddRecipe("craft_light_cargo_drone_platform", "制造轻型无人机平台", new[] { Stack("metal", 6), Stack("silicon", 4), Stack("electronic_parts", 4), Stack("energy_cell", 2) }, new[] { Stack("light_cargo_drone_platform", 1) }, 26f, 10, "crafting", "blueprint_assembler_basic", "engineering");
+        AddRecipe("craft_heavy_cargo_spider_platform", "制造重型运输平台", new[] { Stack("metal", 16), Stack("alloy", 4), Stack("electronic_parts", 5), Stack("energy_cell", 4) }, new[] { Stack("heavy_cargo_spider_platform", 1) }, 40f, 14, "crafting", "blueprint_assembler_basic", "engineering");
+        AddRecipe("craft_rocket_part", "制造火箭部件", new[] { Stack("metal", 10), Stack("alloy", 4), Stack("electronic_parts", 2), Stack("energy_cell", 3) }, new[] { Stack("rocket_part", 1) }, 36f, 16, "rocket", "blueprint_rocket_part_fabrication", "engineering");
     }
 
     private void AddSkills()
@@ -208,6 +221,85 @@ public sealed class DataRegistry
         _knownCoordinates.Add(coordinate.CoordinateId, coordinate);
     }
 
+    private void AddMineralDeposits()
+    {
+        AddMineralDeposit(
+            "mineral_scrap_pile_basic",
+            "废料堆",
+            "salvage",
+            "scrap",
+            4,
+            120,
+            4f,
+            0,
+            "assets/ui/surface/minerals/mineral_scrap_pile_basic.png",
+            "assets/sprites/minerals/mineral_scrap_pile_basic.png",
+            "assets/sprites/minerals/mineral_scrap_pile_depleted.png",
+            new[] { "tool", "salvage" },
+            new[] { "service", "worker" },
+            new[] { "mineral_deposit", "salvage", "surface_visible" });
+        AddMineralDeposit(
+            "mineral_metal_deposit_basic",
+            "浅层金属矿",
+            "ore",
+            "metal",
+            3,
+            90,
+            6f,
+            0,
+            "assets/ui/surface/minerals/mineral_metal_deposit_basic.png",
+            "assets/sprites/minerals/mineral_metal_deposit_basic.png",
+            "assets/sprites/minerals/mineral_metal_deposit_depleted.png",
+            new[] { "tool", "mining_tool" },
+            new[] { "service", "worker", "ground_heavy", "miner" },
+            new[] { "mineral_deposit", "ore", "surface_visible" });
+        AddMineralDeposit(
+            "mineral_silicon_outcrop_basic",
+            "硅质露头",
+            "ore",
+            "silicon",
+            3,
+            70,
+            6f,
+            0,
+            "assets/ui/surface/minerals/mineral_silicon_outcrop_basic.png",
+            "assets/sprites/minerals/mineral_silicon_outcrop_basic.png",
+            "assets/sprites/minerals/mineral_silicon_outcrop_depleted.png",
+            new[] { "tool", "mining_tool" },
+            new[] { "service", "ground_heavy" },
+            new[] { "mineral_deposit", "ore", "surface_visible" });
+        AddMineralDeposit(
+            "mineral_energy_cell_cache_basic",
+            "旧能源缓存",
+            "energy_cache",
+            "energy_cell",
+            2,
+            24,
+            5f,
+            0,
+            "assets/ui/surface/minerals/mineral_energy_cell_cache_basic.png",
+            "assets/sprites/minerals/mineral_energy_cell_cache_basic.png",
+            "assets/sprites/minerals/mineral_energy_cell_cache_depleted.png",
+            new[] { "tool", "salvage" },
+            new[] { "service", "worker" },
+            new[] { "mineral_deposit", "energy_cache", "surface_visible" });
+        AddMineralDeposit(
+            "mineral_rare_earth_trace_basic",
+            "稀土痕迹矿",
+            "rare_ore",
+            "rare_earth",
+            1,
+            28,
+            8f,
+            1,
+            "assets/ui/surface/minerals/mineral_rare_earth_trace_basic.png",
+            "assets/sprites/minerals/mineral_rare_earth_trace_basic.png",
+            "assets/sprites/minerals/mineral_rare_earth_trace_depleted.png",
+            new[] { "tool_heavy", "mining_tool" },
+            new[] { "ground_heavy", "miner" },
+            new[] { "mineral_deposit", "rare_ore", "scan_revealed" });
+    }
+
     private DataLoadReport ValidateDefinitions()
     {
         DataLoadReport report = new();
@@ -248,6 +340,24 @@ public sealed class DataRegistry
         {
             ValidateAsset(report, building.IconPath, $"建筑 {building.Id} 缺少图标");
             ValidateAsset(report, building.SpritePath, $"建筑 {building.Id} 缺少地表精灵");
+            ValidateAsset(report, building.PreviewSpritePath, $"建筑 {building.Id} 缺少预览资源");
+            ValidateAsset(report, building.ConstructionSpritePath, $"建筑 {building.Id} 缺少施工资源");
+            ValidateAsset(report, building.DamagedSpritePath, $"建筑 {building.Id} 缺少受损资源");
+            foreach (ItemStack stack in building.BuildCost)
+            {
+                if (!_items.ContainsKey(stack.ItemId))
+                {
+                    report.Add(DefinitionStatus.FatalError, $"建筑 {building.Id} 建造消耗引用缺失道具：{stack.ItemId}");
+                }
+            }
+
+            foreach (string recipeId in building.RecipeIds)
+            {
+                if (!_recipes.ContainsKey(recipeId))
+                {
+                    report.Add(DefinitionStatus.FatalError, $"建筑 {building.Id} 引用缺失配方：{recipeId}");
+                }
+            }
         }
 
         foreach (SkillData skill in _skills.Values)
@@ -264,12 +374,24 @@ public sealed class DataRegistry
         {
             ValidateAsset(report, coordinate.IconPath, $"坐标 {coordinate.CoordinateId} 缺少图标");
         }
+
+        foreach (MineralDepositData mineralDeposit in _mineralDeposits.Values)
+        {
+            ValidateAsset(report, mineralDeposit.IconPath, $"矿产点 {mineralDeposit.Id} 缺少图标");
+            ValidateAsset(report, mineralDeposit.SpritePath, $"矿产点 {mineralDeposit.Id} 缺少地表资源");
+            ValidateAsset(report, mineralDeposit.DepletedSpritePath, $"矿产点 {mineralDeposit.Id} 缺少耗尽资源");
+            if (!_items.ContainsKey(mineralDeposit.YieldItemId))
+            {
+                report.Add(DefinitionStatus.FatalError, $"矿产点 {mineralDeposit.Id} 引用缺失产出道具：{mineralDeposit.YieldItemId}");
+            }
+        }
     }
 
     private void ValidateRecipeReferences(DataLoadReport report)
     {
         foreach (RecipeData recipe in _recipes.Values)
         {
+            ValidateAsset(report, recipe.IconPath, $"配方 {recipe.Id} 缺少图标");
             foreach (ItemStack stack in recipe.InputItems)
             {
                 if (!_items.ContainsKey(stack.ItemId))
@@ -357,20 +479,99 @@ public sealed class DataRegistry
             MovementType = movementType,
             BaseDurability = durability,
             BaseEnergy = energy,
+            MoveSpeed = MoveSpeedForUnit(id),
             InventoryCapacity = capacity,
             CarryWeightLimit = weightLimit,
             IsAwakenedCapable = awakened,
-            IconPath = $"{DataAssetRoot}/units/{id}.png",
-            PortraitPath = $"{DataAssetRoot}/units/{id}.png",
-            SpritePath = $"{DataAssetRoot}/units/{id}.png"
+            IconPath = $"res://assets/ui/surface/portraits/{id}.png",
+            PortraitPath = $"res://assets/ui/surface/portraits/{id}.png",
+            SpritePath = $"res://assets/sprites/units/{id}.png",
+            SelectionRadius = SelectionRadiusForUnit(id),
+            DefaultBehaviorMode = DefaultBehaviorForUnit(id)
         };
         unit.EquipmentSlots.AddRange(slots);
-        unit.AvailableCommands.AddRange(new[] { "move", "hold", "gather", "repair" });
-        unit.Tags.AddRange(new[] { role, movementType });
+        unit.AvailableCommands.AddRange(CommandsForUnit(id));
+        unit.Tags.AddRange(TagsForUnit(id, role, movementType));
         _units.Add(id, unit);
     }
 
-    private void AddBuilding(string id, string displayName, string description, Vector2I footprint, float buildTime, int powerGeneration, int powerConsumption, int storageCapacity, params string[] tags)
+    private static float MoveSpeedForUnit(string id)
+    {
+        return id switch
+        {
+            "dexter" => 120f,
+            "service_bot" => 105f,
+            "light_cargo_drone" => 165f,
+            "heavy_cargo_spider" => 70f,
+            "rockbreaker" => 75f,
+            _ => 100f
+        };
+    }
+
+    private static float SelectionRadiusForUnit(string id)
+    {
+        return id switch
+        {
+            "dexter" => 20f,
+            "service_bot" => 18f,
+            "light_cargo_drone" => 16f,
+            "heavy_cargo_spider" => 30f,
+            "rockbreaker" => 32f,
+            _ => 18f
+        };
+    }
+
+    private static string[] CommandsForUnit(string id)
+    {
+        return id switch
+        {
+            "dexter" => new[] { "move", "stop", "repair", "build", "scan", "hack", "guard", "attack", "return_to_repair" },
+            "service_bot" => new[] { "move", "stop", "gather", "haul", "build", "repair", "guard", "attack", "return_to_repair" },
+            "light_cargo_drone" => new[] { "move", "stop", "scout", "haul", "scan", "guard", "return_to_repair" },
+            "heavy_cargo_spider" => new[] { "move", "stop", "gather", "haul", "build", "repair", "guard", "attack", "return_to_repair" },
+            "rockbreaker" => new[] { "move", "stop", "gather", "haul", "build", "repair", "guard", "attack", "return_to_repair" },
+            _ => new[] { "move", "stop" }
+        };
+    }
+
+    private static string DefaultBehaviorForUnit(string id)
+    {
+        return id switch
+        {
+            "service_bot" => "work",
+            "light_cargo_drone" => "scout",
+            "heavy_cargo_spider" => "support",
+            "rockbreaker" => "support",
+            _ => "balanced"
+        };
+    }
+
+    private static string[] TagsForUnit(string id, string role, string movementType)
+    {
+        return id switch
+        {
+            "dexter" => new[] { "awakened", "humanoid", "service", "player_core" },
+            "service_bot" => new[] { "mass_unit", "humanoid", "service", "worker" },
+            "light_cargo_drone" => new[] { "mass_unit", "flying", "drone", "scout", "light_cargo" },
+            "heavy_cargo_spider" => new[] { "mass_unit", "ground_heavy", "cargo", "mobile_cover" },
+            "rockbreaker" => new[] { "awakened", "ground_heavy", "miner", "cargo", "story_character" },
+            _ => new[] { role, movementType }
+        };
+    }
+
+    private void AddBuilding(
+        string id,
+        string displayName,
+        string description,
+        Vector2I footprint,
+        IEnumerable<ItemStack> buildCost,
+        float buildTime,
+        int powerGeneration,
+        int powerConsumption,
+        int storageCapacity,
+        string requiresBlueprintId,
+        IEnumerable<string> recipeIds,
+        params string[] tags)
     {
         BuildingData building = new()
         {
@@ -382,18 +583,20 @@ public sealed class DataRegistry
             PowerGeneration = powerGeneration,
             PowerConsumption = powerConsumption,
             StorageCapacity = storageCapacity,
-            IconPath = $"{DataAssetRoot}/buildings/{id}.png",
-            SpritePath = $"{DataAssetRoot}/buildings/{id}.png",
-            PreviewSpritePath = $"{DataAssetRoot}/buildings/{id}.png",
-            ConstructionSpritePath = $"{DataAssetRoot}/buildings/{id}.png",
-            DamagedSpritePath = $"{DataAssetRoot}/buildings/{id}.png"
+            RequiresBlueprintId = requiresBlueprintId,
+            IconPath = $"res://assets/ui/surface/buildings/{id}_icon.png",
+            SpritePath = $"res://assets/sprites/buildings/{id}.png",
+            PreviewSpritePath = $"res://assets/sprites/buildings/{id}_preview.png",
+            ConstructionSpritePath = $"res://assets/sprites/buildings/{id}_construction.png",
+            DamagedSpritePath = $"res://assets/sprites/buildings/{id}_damaged.png"
         };
-        building.BuildCost.AddRange(new[] { Stack("metal", footprint.X * footprint.Y * 4), Stack("electronic_parts", 1) });
+        building.BuildCost.AddRange(buildCost);
+        building.RecipeIds.AddRange(recipeIds);
         building.FunctionTags.AddRange(tags);
         _buildings.Add(id, building);
     }
 
-    private void AddRecipe(string id, string displayName, IEnumerable<ItemStack> inputs, IEnumerable<ItemStack> outputs, float workTime, int powerCost, string buildingTag, string skillId)
+    private void AddRecipe(string id, string displayName, IEnumerable<ItemStack> inputs, IEnumerable<ItemStack> outputs, float workTime, int powerCost, string buildingTag, string requiredBlueprintId, string skillId)
     {
         RecipeData recipe = new()
         {
@@ -401,7 +604,9 @@ public sealed class DataRegistry
             DisplayName = displayName,
             WorkTime = workTime,
             PowerCost = powerCost,
-            OperatorSkillId = skillId
+            RequiredBlueprintId = requiredBlueprintId,
+            OperatorSkillId = skillId,
+            IconPath = $"res://assets/ui/surface/recipes/{id}.png"
         };
         recipe.InputItems.AddRange(inputs);
         recipe.OutputItems.AddRange(outputs);
@@ -421,6 +626,42 @@ public sealed class DataRegistry
         skill.ExperienceThresholds.AddRange(new[] { 0, 100, 260, 520, 900, 1400 });
         skill.EffectTags.AddRange(effectTags);
         _skills.Add(id, skill);
+    }
+
+    private void AddMineralDeposit(
+        string id,
+        string displayName,
+        string nodeType,
+        string yieldItemId,
+        int baseYield,
+        int maxYield,
+        float gatherTime,
+        int requiresScanLevel,
+        string iconPath,
+        string spritePath,
+        string depletedSpritePath,
+        IEnumerable<string> requiredToolTags,
+        IEnumerable<string> preferredUnitTags,
+        IEnumerable<string> tags)
+    {
+        MineralDepositData mineralDeposit = new()
+        {
+            Id = id,
+            DisplayName = displayName,
+            NodeType = nodeType,
+            YieldItemId = yieldItemId,
+            BaseYield = baseYield,
+            MaxYield = maxYield,
+            GatherTime = gatherTime,
+            RequiresScanLevel = requiresScanLevel,
+            IconPath = $"res://{iconPath}",
+            SpritePath = $"res://{spritePath}",
+            DepletedSpritePath = $"res://{depletedSpritePath}"
+        };
+        mineralDeposit.RequiredToolTags.AddRange(requiredToolTags);
+        mineralDeposit.PreferredUnitTags.AddRange(preferredUnitTags);
+        mineralDeposit.Tags.AddRange(tags);
+        _mineralDeposits.Add(id, mineralDeposit);
     }
 
     private static ItemStack Stack(string itemId, int count)

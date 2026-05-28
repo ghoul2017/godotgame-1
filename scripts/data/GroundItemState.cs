@@ -11,5 +11,8 @@ public sealed class GroundItemState
     public List<string> ItemInstanceIds { get; } = new();
     public string SourceType { get; set; } = string.Empty;
     public string SourceId { get; set; } = string.Empty;
+    public string ReservedByUnitInstanceId { get; set; } = string.Empty;
+    public string State { get; set; } = "available";
+    public string FailureReason { get; set; } = string.Empty;
     public double CreatedAtRunTime { get; set; }
 }

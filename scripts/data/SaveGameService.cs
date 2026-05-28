@@ -359,6 +359,163 @@ public sealed class SaveGameService
                 report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失物流订单：{logisticsOrderId}");
             }
         }
+
+        ValidateActiveExpeditionUnitInventories(saveGame, activeExpedition, report);
+        ValidateActiveExpeditionMinerals(saveGame, registry, activeExpedition, report);
+        ValidateActiveExpeditionGatherRecords(saveGame, registry, activeExpedition, report);
+        ValidateActiveExpeditionRepairRecords(saveGame, registry, activeExpedition, report);
+        ValidateActiveExpeditionProductionAndPower(saveGame, registry, activeExpedition, report);
+    }
+
+    private static void ValidateActiveExpeditionUnitInventories(SaveGame saveGame, ExpeditionState activeExpedition, DataLoadReport report)
+    {
+        foreach (string unitInstanceId in activeExpedition.ActiveUnitInstanceIds)
+        {
+            if (!saveGame.UnitInstances.TryGetValue(unitInstanceId, out UnitInstance? unitInstance))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征引用缺失单位实例：{unitInstanceId}");
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(unitInstance.InventoryId) ||
+                !saveGame.Inventories.TryGetValue(unitInstance.InventoryId, out InventoryContainer? unitInventory) ||
+                unitInventory.OwnerType != "unit_inventory" ||
+                unitInventory.OwnerId != unitInstance.UnitInstanceId ||
+                !activeExpedition.LocationInventoryIds.Contains(unitInventory.InventoryId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"当前远征单位缺少远征背包库存：{unitInstanceId}");
+            }
+        }
+    }
+
+    private static void ValidateActiveExpeditionMinerals(SaveGame saveGame, DataRegistry registry, ExpeditionState activeExpedition, DataLoadReport report)
+    {
+        foreach (MineralDepositInstance mineralInstance in activeExpedition.MineralDepositStates.Values)
+        {
+            if (!registry.TryGetMineralDeposit(mineralInstance.MineralDepositId, out MineralDepositData? mineralData) || mineralData is null)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"矿产点实例 {mineralInstance.MineralDepositInstanceId} 引用缺失定义：{mineralInstance.MineralDepositId}");
+                continue;
+            }
+
+            if (mineralInstance.RemainingYield < 0 || mineralInstance.RemainingYield > mineralData.MaxYield)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"矿产点实例 {mineralInstance.MineralDepositInstanceId} 剩余量非法");
+            }
+
+            if (mineralInstance.IsDiscovered &&
+                !activeExpedition.MapState.DiscoveredMineralDepositIds.Contains(mineralInstance.MineralDepositInstanceId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"已发现矿产点未写入地图发现列表：{mineralInstance.MineralDepositInstanceId}");
+            }
+        }
+    }
+
+    private static void ValidateActiveExpeditionGatherRecords(SaveGame saveGame, DataRegistry registry, ExpeditionState activeExpedition, DataLoadReport report)
+    {
+        foreach (GatherRecord record in activeExpedition.GatherRecords)
+        {
+            if (!activeExpedition.ActiveUnitInstanceIds.Contains(record.UnitInstanceId) && record.Result != "failed")
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"采集记录引用非当前远征单位：{record.GatherRecordId}");
+            }
+
+            if (!string.IsNullOrEmpty(record.MineralDepositInstanceId) &&
+                !activeExpedition.MineralDepositStates.ContainsKey(record.MineralDepositInstanceId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"采集记录引用缺失矿产点：{record.GatherRecordId}");
+            }
+
+            if (!string.IsNullOrEmpty(record.ItemId) &&
+                !registry.TryGetItem(record.ItemId, out ItemData? _))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"采集记录引用缺失道具：{record.GatherRecordId}");
+            }
+
+            if (!string.IsNullOrEmpty(record.TransferId) &&
+                saveGame.InventoryTransfers.All(transfer => transfer.TransferId != record.TransferId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"采集记录引用缺失库存转移：{record.GatherRecordId}");
+            }
+
+            if (!string.IsNullOrEmpty(record.DestinationInventoryId) &&
+                !saveGame.Inventories.ContainsKey(record.DestinationInventoryId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"采集记录引用缺失目标库存：{record.GatherRecordId}");
+            }
+
+            if (!string.IsNullOrEmpty(record.GroundItemStateId) &&
+                !saveGame.GroundItems.ContainsKey(record.GroundItemStateId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"采集记录引用缺失地上道具：{record.GatherRecordId}");
+            }
+        }
+    }
+
+    private static void ValidateActiveExpeditionProductionAndPower(SaveGame saveGame, DataRegistry registry, ExpeditionState activeExpedition, DataLoadReport report)
+    {
+        foreach (ProductionJobState job in activeExpedition.ProductionJobs)
+        {
+            if (!saveGame.BuildingInstances.ContainsKey(job.BuildingInstanceId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"生产任务引用缺失建筑：{job.ProductionJobId}");
+            }
+
+            if (!registry.Recipes.ContainsKey(job.RecipeId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"生产任务引用缺失配方：{job.ProductionJobId}");
+            }
+
+            if (!string.IsNullOrEmpty(job.InputInventoryId) && !saveGame.Inventories.ContainsKey(job.InputInventoryId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"生产任务引用缺失输入库存：{job.ProductionJobId}");
+            }
+
+            if (!string.IsNullOrEmpty(job.OutputInventoryId) && !saveGame.Inventories.ContainsKey(job.OutputInventoryId))
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"生产任务引用缺失输出库存：{job.ProductionJobId}");
+            }
+        }
+
+        foreach (PowerNetworkState network in activeExpedition.PowerNetworkStates)
+        {
+            if (network.TotalGeneration < 0 || network.TotalConsumption < 0 || network.StorageCapacity < 0)
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"电力网络数值非法：{network.PowerNetworkId}");
+            }
+        }
+    }
+
+    private static void ValidateActiveExpeditionRepairRecords(SaveGame saveGame, DataRegistry registry, ExpeditionState activeExpedition, DataLoadReport report)
+    {
+        foreach (RepairRecord record in activeExpedition.RepairRecords)
+        {
+            if (!activeExpedition.ActiveUnitInstanceIds.Contains(record.UnitInstanceId) && record.Result != "failed")
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"维修记录引用非当前远征单位：{record.RepairRecordId}");
+            }
+
+            if (record.TargetType == "building_friendly" && !saveGame.BuildingInstances.ContainsKey(record.TargetId) && record.Result != "failed")
+            {
+                report.Add(DefinitionStatus.RecoverableError, $"维修记录引用缺失建筑：{record.RepairRecordId}");
+            }
+
+            foreach (ItemStack stack in record.ConsumedItems)
+            {
+                if (!registry.TryGetItem(stack.ItemId, out ItemData? _))
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"维修记录引用缺失消耗道具：{record.RepairRecordId}");
+                }
+            }
+
+            foreach (string transferId in record.ConsumedTransferIds)
+            {
+                if (saveGame.InventoryTransfers.All(transfer => transfer.TransferId != transferId))
+                {
+                    report.Add(DefinitionStatus.RecoverableError, $"维修记录引用缺失转移记录：{record.RepairRecordId}");
+                }
+            }
+        }
     }
 
     private static void ValidateActiveExpeditionDropPlan(

@@ -32,8 +32,10 @@ public sealed class ExpeditionCreationService
         AddDefaultAwakenedUnit(config);
         AddDefaultMassUnits(config);
         AddDefaultStack(config, "metal", 20);
+        AddDefaultStack(config, "silicon", 8);
         AddDefaultStack(config, "scrap", 20);
-        AddDefaultStack(config, "energy_cell", 8);
+        AddDefaultStack(config, "energy_cell", 6);
+        AddDefaultStack(config, "electronic_parts", 8);
         AddDefaultItemInstances(config);
         ValidateDropConfig(config);
         return config;
@@ -156,6 +158,7 @@ public sealed class ExpeditionCreationService
             Seed = seed,
             DropPosition = expeditionState.DropPosition
         };
+        expeditionData.ActiveUnitInstanceIds.AddRange(expeditionState.ActiveUnitInstanceIds);
         expeditionData.InitialUnits.AddRange(expeditionState.InitialUnits);
         expeditionData.InitialItems.AddRange(expeditionState.InitialItems);
 
@@ -266,7 +269,7 @@ public sealed class ExpeditionCreationService
                 unitData is not null)
             {
                 config.UsedUnitCapacity += GetUnitCapacityCost(unitData, instance.UnitId);
-                config.UsedWeight += GetUnitDropWeight(unitData);
+                config.UsedWeight += GetUnitDropWeight(instance.UnitId);
             }
         }
 
@@ -620,6 +623,7 @@ public sealed class ExpeditionCreationService
 
         unitInstance.LockedByExpeditionId = expeditionState.ExpeditionId;
         unitInstance.CurrentCommand = $"expedition:{expeditionState.ExpeditionId}";
+        EnsureUnitInventoryForExpedition(expeditionState, unitInstance);
         expeditionState.ActiveUnitInstanceIds.Add(unitInstanceId);
         expeditionState.InitialUnits.Add(new UnitStack
         {
@@ -739,7 +743,6 @@ public sealed class ExpeditionCreationService
                 IsAwakened = false,
                 Durability = unitData.BaseDurability,
                 Energy = unitData.BaseEnergy,
-                InventoryId = string.Empty,
                 LockedByExpeditionId = expeditionId,
                 BehaviorMode = unitData.DefaultBehaviorMode,
                 CurrentCommand = $"expedition:{expeditionId}"
@@ -750,6 +753,45 @@ public sealed class ExpeditionCreationService
 
         message = string.Empty;
         return true;
+    }
+
+    private InventoryContainer EnsureUnitInventoryForExpedition(ExpeditionState expeditionState, UnitInstance unitInstance)
+    {
+        if (!_registry.TryGetUnit(unitInstance.UnitId, out UnitData? unitData) || unitData is null)
+        {
+            return EnsureInventory($"unit_inventory_{expeditionState.ExpeditionId}_{unitInstance.UnitInstanceId}", "unit_inventory", unitInstance.UnitInstanceId, 8, 40f);
+        }
+
+        if (!string.IsNullOrEmpty(unitInstance.InventoryId) &&
+            _session.Inventories.TryGetValue(unitInstance.InventoryId, out InventoryContainer? existingInventory) &&
+            existingInventory.OwnerType == "unit_inventory" &&
+            existingInventory.OwnerId == unitInstance.UnitInstanceId &&
+            expeditionState.LocationInventoryIds.Contains(existingInventory.InventoryId))
+        {
+            return existingInventory;
+        }
+
+        string inventoryId = UniqueId(
+            $"unit_inventory_{expeditionState.ExpeditionId}_{unitInstance.UnitInstanceId}",
+            expeditionState.Seed,
+            _session.Inventories.ContainsKey);
+        InventoryContainer unitInventory = new()
+        {
+            InventoryId = inventoryId,
+            OwnerType = "unit_inventory",
+            OwnerId = unitInstance.UnitInstanceId,
+            SlotLimit = unitData.InventoryCapacity,
+            WeightLimit = unitData.CarryWeightLimit
+        };
+        _session.Inventories[unitInventory.InventoryId] = unitInventory;
+        unitInstance.InventoryId = unitInventory.InventoryId;
+        if (!expeditionState.LocationInventoryIds.Contains(unitInventory.InventoryId))
+        {
+            expeditionState.LocationInventoryIds.Add(unitInventory.InventoryId);
+        }
+
+        GD.Print($"[库存] 创建远征单位背包：{unitInventory.InventoryId}");
+        return unitInventory;
     }
 
     private void RollbackDropTransaction(
@@ -877,9 +919,17 @@ public sealed class ExpeditionCreationService
         return unitId is "heavy_cargo_spider" or "rockbreaker" || unitData.Tags.Contains("heavy") ? 2 : 1;
     }
 
-    private static float GetUnitDropWeight(UnitData unitData)
+    private static float GetUnitDropWeight(string unitId)
     {
-        return Math.Max(1f, unitData.CarryWeightLimit);
+        return unitId switch
+        {
+            "dexter" => 24f,
+            "service_bot" => 18f,
+            "light_cargo_drone" => 8f,
+            "heavy_cargo_spider" => 20f,
+            "rockbreaker" => 20f,
+            _ => 12f
+        };
     }
 
     private static ItemStack CopyStack(ItemStack stack)

@@ -15,4 +15,6 @@ public sealed class ConstructionSiteState
     public string State { get; set; } = "waiting_materials";
     public float ConstructionProgress { get; set; }
     public string AssignedUnitInstanceId { get; set; } = string.Empty;
+    public string FailureReason { get; set; } = string.Empty;
+    public double CreatedAt { get; set; }
 }

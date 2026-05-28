@@ -1,47 +1,113 @@
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 namespace GodotGame;
 
 public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 {
+    private static readonly IReadOnlyDictionary<string, string> CommandIconPaths = new Dictionary<string, string>
+    {
+        ["move"] = "res://assets/ui/surface/commands/command_move.png",
+        ["stop"] = "res://assets/ui/surface/commands/command_stop.png",
+        ["gather"] = "res://assets/ui/surface/commands/command_gather.png",
+        ["haul"] = "res://assets/ui/surface/commands/command_haul.png",
+        ["build"] = "res://assets/ui/surface/commands/command_build.png",
+        ["guard"] = "res://assets/ui/surface/commands/command_guard.png",
+        ["repair"] = "res://assets/ui/surface/commands/command_repair.png",
+        ["attack"] = "res://assets/ui/surface/commands/command_attack.png",
+        ["scan"] = "res://assets/ui/surface/commands/command_scan.png",
+        ["hack"] = "res://assets/ui/surface/commands/command_hack.png",
+        ["scout"] = "res://assets/ui/surface/commands/command_scout.png",
+        ["return_to_repair"] = "res://assets/ui/surface/commands/command_return_repair.png"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> CommandDisplayNames = new Dictionary<string, string>
+    {
+        ["move"] = "移动",
+        ["stop"] = "停止",
+        ["gather"] = "采集",
+        ["haul"] = "搬运",
+        ["build"] = "建造",
+        ["guard"] = "护卫",
+        ["repair"] = "修理",
+        ["attack"] = "攻击",
+        ["scan"] = "扫描",
+        ["hack"] = "骇入",
+        ["scout"] = "侦察",
+        ["return_to_repair"] = "维修点"
+    };
+
+    private const float DragThreshold = 8f;
+    private const float CameraSpeed = 520f;
+    private const float ZoomStep = 0.08f;
+
+    private readonly Dictionary<string, SurfaceUnit> _surfaceUnits = new();
+    private readonly Dictionary<string, SurfaceMineralDepositView> _mineralViews = new();
+    private readonly SurfaceSelectionState _selectionState = new();
+    private readonly Dictionary<string, Button> _commandButtons = new();
+
     private Label? _statusLabel;
     private Label? _manifestLabel;
+    private TextureRect? _selectionPortrait;
+    private Label? _selectionLabel;
+    private Label? _messageLabel;
+    private Button? _behaviorModeButton;
+    private Node2D? _unitLayer;
+    private Node2D? _mineralLayer;
+    private Node2D? _buildingLayer;
+    private Node2D? _effectLayer;
+    private Camera2D? _camera;
+    private TextureRect? _dragSelectFrame;
+    private Sprite2D? _moveMarker;
+    private Line2D? _pathLine;
+    private TextureRect? _groupBadge;
+    private TextureRect? _commandFailedIcon;
+    private AudioStreamPlayer? _audioPlayer;
     private ScenePayload? _payload;
+    private Vector2 _dragStartViewport;
+    private Vector2 _dragStartWorld;
+    private bool _isDraggingSelection;
+
+    public override void _Ready()
+    {
+        BuildUi();
+    }
+
+    public override void _Process(double delta)
+    {
+        HandleCameraMotion(delta);
+    }
 
     public override void _UnhandledInput(InputEvent @event)
     {
         InputIntentController? inputController = FindGameRoot()?.InputIntentController;
-        if (inputController is null)
+        if (inputController is null || !inputController.CanHandleSurfaceCommand())
         {
             return;
         }
 
-        InputIntentController.SurfaceIntent intent = inputController.GetSurfaceIntent(@event);
-        if (intent == InputIntentController.SurfaceIntent.SelectPrimary)
+        if (@event is InputEventMouseButton mouseButton)
         {
-            GD.Print("[输入] 地表选择意图");
-            GetViewport().SetInputAsHandled();
+            HandleMouseButton(mouseButton);
+            return;
         }
-        else if (intent == InputIntentController.SurfaceIntent.CommandContext)
+
+        if (@event is InputEventMouseMotion mouseMotion)
         {
-            GD.Print("[输入] 地表上下文指令意图");
-            GetViewport().SetInputAsHandled();
+            HandleMouseMotion(mouseMotion);
+            return;
         }
-        else if (intent == InputIntentController.SurfaceIntent.Cancel)
+
+        if (@event is InputEventKey keyEvent)
         {
-            GD.Print("[输入] 地表取消意图");
-            GetViewport().SetInputAsHandled();
+            HandleKeyInput(keyEvent);
         }
     }
 
     public override void _ExitTree()
     {
         FindGameRoot()?.InputIntentController.SetUiBlocked(false);
-    }
-
-    public override void _Ready()
-    {
-        BuildUi();
     }
 
     public void ReceivePayload(ScenePayload payload)
@@ -60,7 +126,57 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             _manifestLabel.Text = $"空投计划：{expeditionData.DropPlanId}\n空投库存：{expeditionData.DropPodCargoInventoryId}\n初始单位：{units}\n携带物资：{items}";
         }
 
+        InitializeSurfaceState(payload);
         GD.Print($"[远征] 进入地表远征，种子：{payload.Seed}");
+    }
+
+    private void InitializeSurfaceState(ScenePayload payload)
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        if (gameRoot is null || _unitLayer is null || _mineralLayer is null)
+        {
+            return;
+        }
+
+        if (!SurfaceExpeditionValidator.TryValidate(payload, gameRoot.Session, out ExpeditionState? expeditionState, out string message) ||
+            expeditionState is null)
+        {
+            GD.PushError($"[远征] {message}");
+            SetMessage(message);
+            if (HasArgument("--surface-self-test"))
+            {
+                QuitSelfTestFailure();
+            }
+
+            return;
+        }
+
+        SurfaceMineralSeeder.EnsureInitialMinerals(expeditionState, gameRoot.DataRegistry);
+        RenderMinerals(expeditionState, gameRoot.DataRegistry);
+
+        foreach (SurfaceUnit existingUnit in _surfaceUnits.Values)
+        {
+            existingUnit.QueueFree();
+        }
+
+        _surfaceUnits.Clear();
+        SurfaceUnitFactory factory = new(gameRoot.Session, gameRoot.DataRegistry);
+        foreach (SurfaceUnit surfaceUnit in factory.CreateUnits(expeditionState, _unitLayer))
+        {
+            _surfaceUnits[surfaceUnit.UnitInstanceId] = surfaceUnit;
+        }
+
+        if (_camera is not null)
+        {
+            _camera.Position = new Vector2(expeditionState.DropPosition.X, expeditionState.DropPosition.Y);
+        }
+        SetMessage($"{message} 单位 { _surfaceUnits.Count } 个。");
+        GD.Print($"[地表] 单位实例化完成：{_surfaceUnits.Count}");
+        RefreshSelectionUi();
+        RunDebugSelfTestIfRequested(payload, expeditionState);
+        RunGatherSelfTestIfRequested(payload, expeditionState);
+        RunEconomySelfTestIfRequested(payload, expeditionState);
+        RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
     }
 
     private void BuildUi()
@@ -71,40 +187,91 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         };
         AddChild(mapLayer);
 
-        Node2D unitLayer = new()
+        Sprite2D background = new()
+        {
+            Name = "SurfaceBackgroundWorld",
+            Texture = UiAssets.LoadTexture(UiAssets.SurfaceBackground),
+            Centered = true,
+            ZIndex = -100
+        };
+        mapLayer.AddChild(background);
+
+        _unitLayer = new Node2D
         {
             Name = "UnitLayer"
         };
-        AddChild(unitLayer);
+        AddChild(_unitLayer);
 
-        Node2D buildingLayer = new()
+        _mineralLayer = new Node2D
+        {
+            Name = "MineralLayer"
+        };
+        AddChild(_mineralLayer);
+
+        _buildingLayer = new Node2D
         {
             Name = "BuildingLayer"
         };
-        AddChild(buildingLayer);
+        AddChild(_buildingLayer);
 
-        Node2D effectLayer = new()
+        _effectLayer = new Node2D
         {
-            Name = "ProjectileEffectLayer"
+            Name = "SurfaceEffectLayer"
         };
-        AddChild(effectLayer);
+        AddChild(_effectLayer);
+        _moveMarker = new Sprite2D
+        {
+            Name = "MoveMarker",
+            Texture = UiAssets.LoadTexture("res://assets/effects/surface/command_move_marker.png"),
+            Visible = false,
+            ZIndex = 20
+        };
+        _effectLayer.AddChild(_moveMarker);
+
+        _pathLine = new Line2D
+        {
+            Name = "PathLine",
+            Width = 4f,
+            DefaultColor = new Color(0.36f, 0.86f, 0.76f, 0.72f),
+            Texture = UiAssets.LoadTexture("res://assets/effects/surface/path_line.png"),
+            TextureMode = Line2D.LineTextureMode.Tile,
+            Visible = false,
+            ZIndex = 19
+        };
+        _effectLayer.AddChild(_pathLine);
+
+        _camera = new Camera2D
+        {
+            Name = "SurfaceCamera",
+            Zoom = Vector2.One
+        };
+        AddChild(_camera);
+        _camera.MakeCurrent();
+
+        _audioPlayer = new AudioStreamPlayer
+        {
+            Name = "SurfaceAudio"
+        };
+        AddChild(_audioPlayer);
 
         CanvasLayer uiLayer = new()
         {
-            Name = "SurfaceUi"
+            Name = "SurfaceUi",
+            Layer = 10
         };
         AddChild(uiLayer);
 
-        TextureRect background = UiAssets.CreateTextureRect("SurfaceBackground", UiAssets.SurfaceBackground);
-        background.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        uiLayer.AddChild(background);
-
         Control root = new()
         {
-            Name = "SurfaceLayout"
+            Name = "SurfaceLayout",
+            MouseFilter = Control.MouseFilterEnum.Ignore
         };
         root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         uiLayer.AddChild(root);
+
+        _dragSelectFrame = UiAssets.CreateTextureRect("DragSelectFrame", "res://assets/ui/surface/selection/drag_select_frame.png", TextureRect.ExpandModeEnum.IgnoreSize);
+        _dragSelectFrame.Visible = false;
+        root.AddChild(_dragSelectFrame);
 
         VBoxContainer topBar = new()
         {
@@ -138,24 +305,48 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         TextureRect minimapIcon = UiAssets.CreateTextureRect("MinimapIcon", UiAssets.IconMinimap);
         minimapIcon.CustomMinimumSize = new Vector2(48, 48);
         minimapBox.AddChild(minimapIcon);
-        minimapBox.AddChild(UiAssets.CreateSectionLabel("区域扫描图"));
+        minimapBox.AddChild(UiAssets.CreateSectionLabel("小地图框架"));
+        minimapBox.AddChild(new Label { Text = "空投点 / 镜头框\n真实迷雾由第 7 步接管", AutowrapMode = TextServer.AutowrapMode.WordSmart });
 
         PanelContainer bottomPanel = new()
         {
             Name = "SelectionPanel",
-            CustomMinimumSize = new Vector2(560, 150)
+            CustomMinimumSize = new Vector2(610, 160)
         };
         bottomPanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
         bottomPanel.OffsetLeft = 280;
-        bottomPanel.OffsetRight = -280;
+        bottomPanel.OffsetRight = -300;
         bottomPanel.OffsetBottom = -16;
-        bottomPanel.OffsetTop = -166;
+        bottomPanel.OffsetTop = -176;
         root.AddChild(bottomPanel);
         RegisterUiInputBlocker(bottomPanel);
 
         VBoxContainer selectionBox = new();
         bottomPanel.AddChild(selectionBox);
         selectionBox.AddChild(UiAssets.CreateSectionLabel("单位 / 建筑信息"));
+        HBoxContainer selectionSummary = new()
+        {
+            Name = "SelectionSummary"
+        };
+        selectionBox.AddChild(selectionSummary);
+        _selectionPortrait = UiAssets.CreateTextureRect("SelectionPortrait", "res://assets/ui/surface/status/command_failed.png", TextureRect.ExpandModeEnum.IgnoreSize);
+        _selectionPortrait.CustomMinimumSize = new Vector2(72, 72);
+        _selectionPortrait.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+        selectionSummary.AddChild(_selectionPortrait);
+        _selectionLabel = new Label
+        {
+            Text = "未选择单位",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+        };
+        selectionSummary.AddChild(_selectionLabel);
+        _behaviorModeButton = new Button
+        {
+            Text = "切换行为",
+            Disabled = true
+        };
+        _behaviorModeButton.Pressed += CycleSelectedBehaviorMode;
+        selectionBox.AddChild(_behaviorModeButton);
         _manifestLabel = new Label
         {
             Text = "初始单位：等待远征载荷\n携带物资：等待远征载荷",
@@ -166,54 +357,47 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         GridContainer commandPanel = new()
         {
             Name = "CommandPanel",
-            Columns = 2
+            Columns = 3
         };
         commandPanel.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        commandPanel.OffsetLeft = -250;
+        commandPanel.OffsetLeft = -300;
         commandPanel.OffsetBottom = -16;
-        commandPanel.OffsetTop = -166;
+        commandPanel.OffsetTop = -276;
         commandPanel.OffsetRight = -16;
         root.AddChild(commandPanel);
         RegisterUiInputBlocker(commandPanel);
-
-        AddCommandButton(commandPanel, "回归", UiAssets.IconCommand, () =>
-        {
-            GameRoot? gameRoot = FindGameRoot();
-            if (gameRoot is null)
-            {
-                return;
-            }
-
-            ExpeditionState? expeditionState = gameRoot.Session.ActiveExpedition;
-            if (!(_payload?.DebugEnabled ?? false) &&
-                (expeditionState is null ||
-                 !expeditionState.RocketState.IsReadyToReturn ||
-                 !expeditionState.RocketState.LaunchConfirmed ||
-                 string.IsNullOrEmpty(expeditionState.RocketState.CargoInventoryId)))
-            {
-                GD.PushWarning("[结算] 火箭尚未完成装载和发射确认，不能回归");
-                return;
-            }
-
-            ScenePayload returnPayload = CreateReturnPayload(gameRoot);
-            gameRoot.NavigateTo(SceneId.ReturnSummary, returnPayload);
-        });
-
-        AddCommandButton(commandPanel, "取消", UiAssets.IconCommand, () => GD.Print("[输入] 命令区取消"));
+        BuildCommandButtons(commandPanel);
 
         VBoxContainer messagePanel = new()
         {
             Name = "MessagePanel"
         };
         messagePanel.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
-        messagePanel.OffsetLeft = -280;
+        messagePanel.OffsetLeft = -300;
         messagePanel.OffsetRight = -16;
-        messagePanel.OffsetTop = -120;
+        messagePanel.OffsetTop = -140;
         messagePanel.OffsetBottom = 120;
         root.AddChild(messagePanel);
         RegisterUiInputBlocker(messagePanel);
         messagePanel.AddChild(UiAssets.CreateSectionLabel("消息和事件"));
-        messagePanel.AddChild(new Label { Text = "当前没有必须立即响应的事件。", AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        _messageLabel = new Label
+        {
+            Text = "当前没有必须立即响应的事件。",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart
+        };
+        messagePanel.AddChild(_messageLabel);
+        HBoxContainer statusIconRow = new()
+        {
+            Name = "StatusIconRow"
+        };
+        messagePanel.AddChild(statusIconRow);
+        _groupBadge = UiAssets.CreateTextureRect("GroupBadge", "res://assets/ui/surface/groups/group_badge.png", TextureRect.ExpandModeEnum.IgnoreSize);
+        _groupBadge.CustomMinimumSize = new Vector2(42, 42);
+        statusIconRow.AddChild(_groupBadge);
+        _commandFailedIcon = UiAssets.CreateTextureRect("CommandFailedIcon", "res://assets/ui/surface/status/command_failed.png", TextureRect.ExpandModeEnum.IgnoreSize);
+        _commandFailedIcon.CustomMinimumSize = new Vector2(42, 42);
+        _commandFailedIcon.Visible = false;
+        statusIconRow.AddChild(_commandFailedIcon);
 
         Button backButton = new()
         {
@@ -224,9 +408,1260 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         CanvasLayer debugLayer = new()
         {
-            Name = "DebugOverlay"
+            Name = "DebugOverlay",
+            Layer = 20
         };
         AddChild(debugLayer);
+    }
+
+    private void BuildCommandButtons(GridContainer commandPanel)
+    {
+        foreach (KeyValuePair<string, string> command in CommandDisplayNames)
+        {
+            Button button = AddCommandButton(commandPanel, command.Value, CommandIconPaths[command.Key], () => HandleCommandButton(command.Key));
+            RegisterCommandCursor(button, command.Key);
+            _commandButtons[command.Key] = button;
+        }
+
+        AddCommandButton(commandPanel, "回归", UiAssets.IconCommand, () =>
+        {
+            GameRoot? gameRoot = FindGameRoot();
+            if (gameRoot is null)
+            {
+                return;
+            }
+
+            ExpeditionState? expeditionState = gameRoot.Session.ActiveExpedition;
+            if (expeditionState is null ||
+                !expeditionState.RocketState.IsReadyToReturn ||
+                !expeditionState.RocketState.LaunchConfirmed ||
+                string.IsNullOrEmpty(expeditionState.RocketState.CargoInventoryId))
+            {
+                GD.PushWarning("[结算] 火箭尚未完成装载和发射确认，不能回归");
+                PlaySurfaceAudio("command_failed");
+                ShowCommandFailure("火箭尚未完成装载和发射确认，不能回归。");
+                return;
+            }
+
+            ScenePayload returnPayload = CreateReturnPayload(gameRoot);
+            gameRoot.NavigateTo(SceneId.ReturnSummary, returnPayload);
+        });
+
+        AddCommandButton(commandPanel, "取消", UiAssets.IconCommand, ClearSelection);
+        RefreshCommandButtons();
+    }
+
+    private void HandleMouseButton(InputEventMouseButton mouseButton)
+    {
+        if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
+        {
+            AdjustZoom(-ZoomStep);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
+        {
+            AdjustZoom(ZoomStep);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        if (mouseButton.ButtonIndex == MouseButton.Left)
+        {
+            if (mouseButton.Pressed)
+            {
+                _isDraggingSelection = true;
+                _dragStartViewport = mouseButton.Position;
+                _dragStartWorld = GetGlobalMousePosition();
+                UpdateDragFrame(mouseButton.Position);
+            }
+            else if (_isDraggingSelection)
+            {
+                CompleteSelection(mouseButton.Position);
+            }
+
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        if (mouseButton.ButtonIndex == MouseButton.Right && mouseButton.Pressed)
+        {
+            SurfaceMineralDepositView? mineralView = FindMineralAt(GetGlobalMousePosition());
+            if (mineralView is not null)
+            {
+                IssueGatherCommand(mineralView.MineralDepositInstanceId);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            IssueMoveCommand(GetGlobalMousePosition());
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    private void HandleMouseMotion(InputEventMouseMotion mouseMotion)
+    {
+        if (_isDraggingSelection)
+        {
+            UpdateDragFrame(mouseMotion.Position);
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    private void HandleKeyInput(InputEventKey keyEvent)
+    {
+        if (!keyEvent.Pressed || keyEvent.Echo)
+        {
+            return;
+        }
+
+        int groupIndex = GroupIndexFromKey(keyEvent.Keycode);
+        if (groupIndex > 0)
+        {
+            if (keyEvent.CtrlPressed)
+            {
+                AssignControlGroup(groupIndex);
+            }
+            else
+            {
+                RecallControlGroup(groupIndex);
+            }
+
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        if (keyEvent.Keycode == Key.Escape)
+        {
+            ClearSelection();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    private void CompleteSelection(Vector2 releaseViewport)
+    {
+        _isDraggingSelection = false;
+        if (_dragSelectFrame is not null)
+        {
+            _dragSelectFrame.Visible = false;
+        }
+
+        Vector2 releaseWorld = GetGlobalMousePosition();
+        if (_dragStartViewport.DistanceTo(releaseViewport) <= DragThreshold)
+        {
+            SelectAtPoint(releaseWorld);
+            return;
+        }
+
+        Rect2 worldRect = NormalizeRect(_dragStartWorld, releaseWorld);
+        List<string> selectedIds = new();
+        foreach (SurfaceUnit unit in _surfaceUnits.Values)
+        {
+            if (worldRect.HasPoint(unit.Position))
+            {
+                selectedIds.Add(unit.UnitInstanceId);
+            }
+        }
+
+        ApplySelection(selectedIds);
+        if (selectedIds.Count > 0)
+        {
+            PlaySurfaceAudio("select_group");
+            GD.Print($"[输入] 框选单位：{selectedIds.Count}");
+        }
+    }
+
+    private void SelectAtPoint(Vector2 worldPosition)
+    {
+        SurfaceUnit? closestUnit = _surfaceUnits.Values
+            .Where(unit => unit.ContainsWorldPosition(worldPosition))
+            .OrderBy(unit => unit.Position.DistanceTo(worldPosition))
+            .FirstOrDefault();
+        if (closestUnit is null)
+        {
+            ClearSelection();
+            return;
+        }
+
+        ApplySelection(new[] { closestUnit.UnitInstanceId });
+        PlaySurfaceAudio("select_unit");
+        GD.Print($"[输入] 选择单位：{closestUnit.UnitInstanceId}");
+    }
+
+    private void ApplySelection(IEnumerable<string> unitInstanceIds)
+    {
+        List<string> ids = unitInstanceIds.Where(id => _surfaceUnits.ContainsKey(id)).Distinct().ToList();
+        _selectionState.SetMany(ids);
+        foreach (SurfaceUnit unit in _surfaceUnits.Values)
+        {
+            unit.SetSelected(_selectionState.Contains(unit.UnitInstanceId));
+        }
+
+        RefreshSelectionUi();
+        RefreshCommandButtons();
+    }
+
+    private void ClearSelection()
+    {
+        _selectionState.Clear();
+        foreach (SurfaceUnit unit in _surfaceUnits.Values)
+        {
+            unit.SetSelected(false);
+        }
+
+        RefreshSelectionUi();
+        RefreshCommandButtons();
+    }
+
+    private void IssueMoveCommand(Vector2 targetPosition)
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null || _selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("没有可移动的已选单位。");
+            return;
+        }
+
+        UnitCommand command = new()
+        {
+            CommandType = "move",
+            TargetType = "ground",
+            TargetPosition = targetPosition,
+            IssuedAt = Time.GetUnixTimeFromSystem(),
+            ValidationState = "accepted"
+        };
+        command.SourceUnitInstanceIds.AddRange(_selectionState.SelectedUnitInstanceIds);
+
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? surfaceUnit))
+            {
+                if (surfaceUnit.RuntimeState is not null)
+                {
+                    surfaceUnit.RuntimeState.CommandQueue.Clear();
+                    surfaceUnit.RuntimeState.CommandQueue.Add(command);
+                }
+
+                surfaceUnit.IssueMove(targetPosition, command.CommandId);
+            }
+        }
+
+        SurfaceCommandRecord record = new()
+        {
+            ExpeditionId = expeditionState.ExpeditionId,
+            CommandId = command.CommandId,
+            CommandType = command.CommandType,
+            TargetType = command.TargetType,
+            TargetPosition = command.TargetPosition,
+            Result = "accepted",
+            CreatedAt = Time.GetUnixTimeFromSystem()
+        };
+        record.UnitInstanceIds.AddRange(command.SourceUnitInstanceIds);
+        expeditionState.SurfaceCommandRecords.Add(record);
+
+        if (_moveMarker is not null)
+        {
+            _moveMarker.Position = targetPosition;
+            _moveMarker.Visible = true;
+        }
+
+        if (_pathLine is not null)
+        {
+            _pathLine.ClearPoints();
+            foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+            {
+                if (_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? surfaceUnit))
+                {
+                    _pathLine.AddPoint(surfaceUnit.Position);
+                    _pathLine.AddPoint(targetPosition);
+                }
+            }
+
+            _pathLine.Visible = true;
+        }
+
+        PlaySurfaceAudio("command_move");
+        SetMessage($"移动指令：{command.SourceUnitInstanceIds.Count} 个单位 -> ({targetPosition.X:0},{targetPosition.Y:0})");
+        RefreshSelectionUi();
+        GD.Print($"[指令] move {command.CommandId} 单位 {command.SourceUnitInstanceIds.Count} 目标 {targetPosition}");
+    }
+
+    private void IssueGatherCommand(string mineralDepositInstanceId)
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null || _selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("没有可执行采集的已选单位。");
+            return;
+        }
+
+        if (!expeditionState.MineralDepositStates.TryGetValue(mineralDepositInstanceId, out MineralDepositInstance? mineralInstance))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure($"找不到矿产点：{mineralDepositInstanceId}");
+            return;
+        }
+
+        UnitCommand command = new()
+        {
+            CommandType = "gather",
+            TargetType = "mineral_deposit",
+            TargetId = mineralDepositInstanceId,
+            TargetPosition = new Vector2(mineralInstance.Position.X, mineralInstance.Position.Y),
+            IssuedAt = Time.GetUnixTimeFromSystem()
+        };
+        command.SourceUnitInstanceIds.AddRange(_selectionState.SelectedUnitInstanceIds);
+
+        SurfaceMiningSystem miningSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        bool success = miningSystem.TryGather(expeditionState, _selectionState.SelectedUnitInstanceIds, mineralDepositInstanceId, out GatherRecord gatherRecord, out string message);
+        command.ValidationState = success ? "accepted" : "rejected";
+        command.FailureReason = success ? string.Empty : message;
+        SurfaceCommandRecord commandRecord = new()
+        {
+            ExpeditionId = expeditionState.ExpeditionId,
+            CommandId = command.CommandId,
+            CommandType = "gather",
+            TargetType = "mineral_deposit",
+            TargetId = mineralDepositInstanceId,
+            TargetPosition = command.TargetPosition,
+            Result = success ? gatherRecord.Result : "failed",
+            FailureReason = success ? gatherRecord.FailureReason : message,
+            CreatedAt = Time.GetUnixTimeFromSystem()
+        };
+        if (success && !string.IsNullOrEmpty(gatherRecord.UnitInstanceId))
+        {
+            commandRecord.UnitInstanceIds.Add(gatherRecord.UnitInstanceId);
+        }
+        else
+        {
+            commandRecord.UnitInstanceIds.AddRange(_selectionState.SelectedUnitInstanceIds);
+        }
+
+        expeditionState.SurfaceCommandRecords.Add(commandRecord);
+        if (!success)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(message);
+            return;
+        }
+
+        if (_surfaceUnits.TryGetValue(gatherRecord.UnitInstanceId, out SurfaceUnit? surfaceUnit) &&
+            surfaceUnit.RuntimeState is not null)
+        {
+            surfaceUnit.RuntimeState.CommandQueue.Clear();
+            surfaceUnit.RuntimeState.CommandQueue.Add(command);
+            surfaceUnit.RuntimeState.CurrentCommandId = command.CommandId;
+            surfaceUnit.RuntimeState.CurrentTargetPosition = command.TargetPosition;
+            surfaceUnit.RuntimeState.MovementState = "gathering";
+        }
+
+        if (_mineralViews.TryGetValue(mineralDepositInstanceId, out SurfaceMineralDepositView? mineralView))
+        {
+            mineralView.Refresh();
+        }
+
+        PlaySurfaceAudio("gather_start", "mining");
+        PlaySurfaceAudio("gather_complete", "mining");
+        ShowGatherEffect(command.TargetPosition);
+        SetMessage(message);
+        RefreshSelectionUi();
+    }
+
+    private void HandleCommandButton(string commandId)
+    {
+        if (commandId == "move")
+        {
+            SetMessage("右键地面下达移动指令。");
+            return;
+        }
+
+        if (commandId == "stop")
+        {
+            StopSelectedUnits();
+            return;
+        }
+
+        if (commandId == "gather")
+        {
+            SurfaceMineralDepositView? target = FindNearestMineralForSelection();
+            if (target is null)
+            {
+                PlaySurfaceAudio("command_failed");
+                ShowCommandFailure("没有可采集的已发现矿产点。");
+                return;
+            }
+
+            IssueGatherCommand(target.MineralDepositInstanceId);
+            return;
+        }
+
+        if (commandId == "build")
+        {
+            CreateSelectedConstructionSite();
+            return;
+        }
+
+        if (commandId == "haul")
+        {
+            DeliverFirstPendingConstructionSite();
+            return;
+        }
+
+        if (commandId == "repair")
+        {
+            RepairFirstDamagedBuilding();
+            return;
+        }
+
+        SetMessage($"{CommandDisplayNames[commandId]} 指令入口已接入，具体效果由后续阶段接管。");
+        PlaySurfaceAudio("command_failed");
+        ShowCommandFailure($"{CommandDisplayNames[commandId]} 指令入口已接入，具体效果由后续阶段接管。");
+        GD.Print($"[指令] {commandId} 目标系统未接入");
+    }
+
+    private void RenderMinerals(ExpeditionState expeditionState, DataRegistry registry)
+    {
+        if (_mineralLayer is null)
+        {
+            return;
+        }
+
+        foreach (SurfaceMineralDepositView existingView in _mineralViews.Values)
+        {
+            existingView.QueueFree();
+        }
+
+        _mineralViews.Clear();
+        foreach (MineralDepositInstance mineralInstance in expeditionState.MineralDepositStates.Values)
+        {
+            if (!mineralInstance.IsDiscovered ||
+                !registry.TryGetMineralDeposit(mineralInstance.MineralDepositId, out MineralDepositData? mineralData) ||
+                mineralData is null)
+            {
+                continue;
+            }
+
+            SurfaceMineralDepositView view = new();
+            view.Configure(mineralInstance, mineralData);
+            _mineralLayer.AddChild(view);
+            _mineralViews[mineralInstance.MineralDepositInstanceId] = view;
+        }
+
+        GD.Print($"[矿产] 地表矿产视图刷新：{_mineralViews.Count}");
+    }
+
+    private void RenderSurfaceStructures(ExpeditionState expeditionState, DataRegistry registry, GameSession session)
+    {
+        if (_buildingLayer is null)
+        {
+            return;
+        }
+
+        foreach (Node child in _buildingLayer.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        foreach (string constructionSiteId in expeditionState.ConstructionSiteIds)
+        {
+            if (!session.ConstructionSites.TryGetValue(constructionSiteId, out ConstructionSiteState? constructionSite) ||
+                constructionSite.State == "completed" ||
+                !registry.TryGetBuilding(constructionSite.BuildingId, out BuildingData? buildingData) ||
+                buildingData is null)
+            {
+                continue;
+            }
+
+            AddStructureSprite(
+                $"Construction_{constructionSite.ConstructionSiteId}",
+                buildingData.ConstructionSpritePath,
+                new Vector2(constructionSite.Position.X, constructionSite.Position.Y),
+                $"{buildingData.DisplayName} 施工点");
+        }
+
+        foreach (string buildingInstanceId in expeditionState.BuildingInstanceIds)
+        {
+            if (!session.BuildingInstances.TryGetValue(buildingInstanceId, out BuildingInstance? buildingInstance) ||
+                !registry.TryGetBuilding(buildingInstance.BuildingId, out BuildingData? buildingData) ||
+                buildingData is null)
+            {
+                continue;
+            }
+
+            Node2D root = AddStructureSprite(
+                $"Building_{buildingInstance.BuildingInstanceId}",
+                buildingData.SpritePath,
+                new Vector2(buildingInstance.Position.X, buildingInstance.Position.Y),
+                $"{buildingData.DisplayName} {buildingInstance.PowerState}");
+            string powerIconPath = $"res://assets/ui/surface/power/power_{buildingInstance.PowerState}.png";
+            Texture2D? powerTexture = LoadOptionalTexture(powerIconPath);
+            if (powerTexture is not null)
+            {
+                Sprite2D powerIcon = new()
+                {
+                    Name = "PowerState",
+                    Texture = powerTexture,
+                    Position = new Vector2(48f, -48f),
+                    Scale = Vector2.One * 0.35f,
+                    ZIndex = 12
+                };
+                root.AddChild(powerIcon);
+            }
+        }
+    }
+
+    private Node2D AddStructureSprite(string name, string texturePath, Vector2 position, string labelText)
+    {
+        Node2D root = new()
+        {
+            Name = name,
+            Position = position
+        };
+        _buildingLayer?.AddChild(root);
+
+        Texture2D? texture = UiAssets.LoadTexture(texturePath);
+        Sprite2D sprite = new()
+        {
+            Name = "Sprite",
+            Texture = texture,
+            ZIndex = -2
+        };
+        if (texture is not null)
+        {
+            Vector2 textureSize = texture.GetSize();
+            float largestSide = Mathf.Max(textureSize.X, textureSize.Y);
+            sprite.Scale = largestSide > 0f ? Vector2.One * (110f / largestSide) : Vector2.One;
+        }
+
+        root.AddChild(sprite);
+        Label label = new()
+        {
+            Name = "Label",
+            Text = labelText,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Position = new Vector2(-96f, 58f),
+            CustomMinimumSize = new Vector2(192f, 24f),
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        root.AddChild(label);
+        return root;
+    }
+
+    private void CreateSelectedConstructionSite()
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null)
+        {
+            return;
+        }
+
+        string assignedUnit = _selectionState.SelectedUnitInstanceIds.FirstOrDefault() ?? string.Empty;
+        Vector2I position = expeditionState.DropPosition + new Vector2I(112, 180 + expeditionState.ConstructionSiteIds.Count * 56);
+        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        if (!constructionSystem.TryCreateConstructionSite(expeditionState, "storage_box", position, assignedUnit, out ConstructionSiteState site, out string message))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(message);
+            return;
+        }
+
+        PlaySurfaceAudio("place_building", "build");
+        SetMessage($"{message}，等待物流送入材料。");
+        RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
+        GD.Print($"[建造] build 指令创建施工点：{site.ConstructionSiteId}");
+    }
+
+    private void DeliverFirstPendingConstructionSite()
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null)
+        {
+            return;
+        }
+
+        string siteId = expeditionState.ConstructionSiteIds.FirstOrDefault(siteId =>
+            gameRoot.Session.ConstructionSites.TryGetValue(siteId, out ConstructionSiteState? site) && site.State != "completed") ?? string.Empty;
+        if (string.IsNullOrEmpty(siteId))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("没有等待补料的施工点。");
+            return;
+        }
+
+        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        if (!constructionSystem.TryDeliverConstructionMaterials(expeditionState, siteId, out string deliveryMessage))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(deliveryMessage);
+            return;
+        }
+
+        if (!constructionSystem.TryCompleteConstruction(expeditionState, siteId, out BuildingInstance _, out string completeMessage))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(completeMessage);
+            return;
+        }
+
+        constructionSystem.RecalculatePowerNetwork(expeditionState);
+        PlaySurfaceAudio("build_complete", "build");
+        SetMessage(completeMessage);
+        RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
+    }
+
+    private void RepairFirstDamagedBuilding()
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null)
+        {
+            return;
+        }
+
+        string buildingInstanceId = expeditionState.BuildingInstanceIds.FirstOrDefault(id =>
+            gameRoot.Session.BuildingInstances.TryGetValue(id, out BuildingInstance? building) &&
+            building.Durability < building.MaxDurability) ?? string.Empty;
+        string unitInstanceId = _selectionState.SelectedUnitInstanceIds.FirstOrDefault() ?? expeditionState.ActiveUnitInstanceIds.FirstOrDefault() ?? string.Empty;
+        if (string.IsNullOrEmpty(buildingInstanceId) || string.IsNullOrEmpty(unitInstanceId))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("没有受损建筑或可执行维修的单位。");
+            return;
+        }
+
+        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        if (!constructionSystem.TryRepairBuilding(expeditionState, buildingInstanceId, unitInstanceId, out RepairRecord _, out string message))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(message);
+            return;
+        }
+
+        SetMessage(message);
+        RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
+    }
+
+    private SurfaceMineralDepositView? FindMineralAt(Vector2 worldPosition)
+    {
+        return _mineralViews.Values
+            .Where(view => view.ContainsWorldPosition(worldPosition))
+            .OrderBy(view => view.Position.DistanceTo(worldPosition))
+            .FirstOrDefault();
+    }
+
+    private SurfaceMineralDepositView? FindNearestMineralForSelection()
+    {
+        if (_selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            return null;
+        }
+
+        Vector2 selectionCenter = Vector2.Zero;
+        int count = 0;
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? unit))
+            {
+                selectionCenter += unit.Position;
+                count++;
+            }
+        }
+
+        if (count == 0)
+        {
+            return null;
+        }
+
+        selectionCenter /= count;
+        return _mineralViews.Values
+            .Where(view => !view.IsDepleted)
+            .OrderBy(view => view.Position.DistanceTo(selectionCenter))
+            .FirstOrDefault();
+    }
+
+    private void ShowGatherEffect(Vector2 position)
+    {
+        if (_effectLayer is null)
+        {
+            return;
+        }
+
+        Texture2D? texture = LoadOptionalTexture("res://assets/effects/surface/gather/gather_complete.png")
+            ?? LoadOptionalTexture("res://assets/ui/surface/gather/gather_complete.png");
+        if (texture is null)
+        {
+            return;
+        }
+
+        Sprite2D effect = new()
+        {
+            Name = "GatherCompleteEffect",
+            Texture = texture,
+            Position = position,
+            ZIndex = 30
+        };
+        _effectLayer.AddChild(effect);
+        Timer timer = new()
+        {
+            OneShot = true,
+            WaitTime = 1.0
+        };
+        effect.AddChild(timer);
+        timer.Timeout += effect.QueueFree;
+        timer.Start();
+    }
+
+    private void StopSelectedUnits()
+    {
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? surfaceUnit) &&
+                surfaceUnit.RuntimeState is not null &&
+                surfaceUnit.UnitInstance is not null)
+            {
+                surfaceUnit.RuntimeState.MovementState = "idle";
+                surfaceUnit.UnitInstance.CurrentCommand = "stop";
+            }
+        }
+
+        SetMessage("已下达停止指令。");
+        GD.Print("[指令] stop");
+    }
+
+    private void AssignControlGroup(int groupIndex)
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (expeditionState is null || _selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("没有可保存到编组的已选单位。");
+            return;
+        }
+
+        foreach (SurfaceUnitRuntimeState runtimeState in expeditionState.UnitRuntimeStates.Values)
+        {
+            runtimeState.SelectionGroupIds.Remove(groupIndex);
+        }
+
+        ControlGroupState groupState = new()
+        {
+            GroupIndex = groupIndex,
+            UpdatedAt = Time.GetUnixTimeFromSystem()
+        };
+        groupState.UnitInstanceIds.AddRange(_selectionState.SelectedUnitInstanceIds);
+        expeditionState.ControlGroupStates[groupIndex] = groupState;
+
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (expeditionState.UnitRuntimeStates.TryGetValue(unitInstanceId, out SurfaceUnitRuntimeState? runtimeState) &&
+                !runtimeState.SelectionGroupIds.Contains(groupIndex))
+            {
+                runtimeState.SelectionGroupIds.Add(groupIndex);
+            }
+        }
+
+        PlaySurfaceAudio("group_assign");
+        if (_groupBadge is not null)
+        {
+            _groupBadge.TooltipText = $"编组 {groupIndex}: {groupState.UnitInstanceIds.Count} 个单位";
+        }
+
+        SetMessage($"编组 {groupIndex} 已保存：{groupState.UnitInstanceIds.Count} 个单位。");
+        GD.Print($"[输入] 保存编组 {groupIndex}");
+    }
+
+    private void RecallControlGroup(int groupIndex)
+    {
+        ExpeditionState? expeditionState = FindGameRoot()?.Session.ActiveExpedition;
+        if (expeditionState is null || !expeditionState.ControlGroupStates.TryGetValue(groupIndex, out ControlGroupState? groupState))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure($"编组 {groupIndex} 为空。");
+            return;
+        }
+
+        List<string> validUnitIds = groupState.UnitInstanceIds.Where(unitInstanceId => _surfaceUnits.ContainsKey(unitInstanceId)).ToList();
+        groupState.UnitInstanceIds.Clear();
+        groupState.UnitInstanceIds.AddRange(validUnitIds);
+        if (validUnitIds.Count == 0)
+        {
+            expeditionState.ControlGroupStates.Remove(groupIndex);
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure($"编组 {groupIndex} 已失效。");
+            return;
+        }
+
+        ApplySelection(validUnitIds);
+        PlaySurfaceAudio("group_recall");
+        SetMessage($"召回编组 {groupIndex}。");
+        GD.Print($"[输入] 召回编组 {groupIndex}");
+    }
+
+    private void RefreshSelectionUi()
+    {
+        if (_selectionLabel is null)
+        {
+            return;
+        }
+
+        if (_selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            _selectionLabel.Text = "未选择单位";
+            if (_selectionPortrait is not null)
+            {
+                _selectionPortrait.Texture = UiAssets.LoadTexture("res://assets/ui/surface/status/command_failed.png");
+            }
+
+            if (_behaviorModeButton is not null)
+            {
+                _behaviorModeButton.Disabled = true;
+                _behaviorModeButton.Text = "切换行为";
+            }
+
+            return;
+        }
+
+        if (_behaviorModeButton is not null)
+        {
+            _behaviorModeButton.Disabled = false;
+            _behaviorModeButton.Text = "切换行为模式";
+        }
+
+        if (_selectionState.SelectedUnitInstanceIds.Count == 1 &&
+            _surfaceUnits.TryGetValue(_selectionState.SelectedUnitInstanceIds[0], out SurfaceUnit? unit) &&
+            unit.UnitInstance is not null &&
+            unit.UnitData is not null)
+        {
+            if (_selectionPortrait is not null)
+            {
+                _selectionPortrait.Texture = UiAssets.LoadTexture(unit.UnitData.PortraitPath);
+            }
+
+            _selectionLabel.Text =
+                $"{unit.DisplayName()}\n耐久 {unit.UnitInstance.Durability}/{unit.UnitData.BaseDurability}  能源 {unit.UnitInstance.Energy}/{unit.UnitData.BaseEnergy}\n行为 {unit.UnitInstance.BehaviorMode}  指令 {unit.UnitInstance.CurrentCommand}";
+            return;
+        }
+
+        if (_selectionPortrait is not null)
+        {
+            _selectionPortrait.Texture = UiAssets.LoadTexture("res://assets/ui/surface/groups/group_badge.png");
+        }
+
+        _selectionLabel.Text = $"已选择 {_selectionState.SelectedUnitInstanceIds.Count} 个单位\n可用命令取交集显示。";
+    }
+
+    private void CycleSelectedBehaviorMode()
+    {
+        string[] modes = { "balanced", "work", "scout", "support", "hold" };
+        if (_selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            return;
+        }
+
+        string firstMode = "balanced";
+        string firstUnitId = _selectionState.SelectedUnitInstanceIds[0];
+        if (_surfaceUnits.TryGetValue(firstUnitId, out SurfaceUnit? firstUnit) &&
+            firstUnit.UnitInstance is not null)
+        {
+            firstMode = firstUnit.UnitInstance.BehaviorMode;
+        }
+
+        int nextIndex = System.Array.IndexOf(modes, firstMode) + 1;
+        if (nextIndex <= 0 || nextIndex >= modes.Length)
+        {
+            nextIndex = 0;
+        }
+
+        string nextMode = modes[nextIndex];
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? surfaceUnit) &&
+                surfaceUnit.UnitInstance is not null)
+            {
+                surfaceUnit.UnitInstance.BehaviorMode = nextMode;
+            }
+        }
+
+        SetMessage($"行为模式切换为：{nextMode}");
+        RefreshSelectionUi();
+        GD.Print($"[单位] 行为模式切换：{nextMode}");
+    }
+
+    private void RunDebugSelfTestIfRequested(ScenePayload payload, ExpeditionState expeditionState)
+    {
+        if (!payload.DebugEnabled || !HasArgument("--surface-self-test"))
+        {
+            return;
+        }
+
+        if (_surfaceUnits.Count == 0)
+        {
+            GD.PushError("[调试] 地表自检失败：没有可实例化单位");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        ApplySelection(_surfaceUnits.Keys);
+        Vector2 target = new(expeditionState.DropPosition.X + 128f, expeditionState.DropPosition.Y - 64f);
+        IssueMoveCommand(target);
+        AssignControlGroup(1);
+        RecallControlGroup(1);
+        CycleSelectedBehaviorMode();
+
+        int movingCount = expeditionState.UnitRuntimeStates.Values.Count(state => state.MovementState == "moving");
+        if (movingCount == 0 || expeditionState.SurfaceCommandRecords.Count == 0 || !expeditionState.ControlGroupStates.ContainsKey(1))
+        {
+            GD.PushError("[调试] 地表自检失败：移动、指令记录或编组状态未写回");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        GD.Print($"[调试] 地表自检完成：选择 {_selectionState.SelectedUnitInstanceIds.Count}，移动 {movingCount}，编组 1");
+    }
+
+    private void RunGatherSelfTestIfRequested(ScenePayload payload, ExpeditionState expeditionState)
+    {
+        if (!payload.DebugEnabled || !HasArgument("--surface-gather-self-test"))
+        {
+            return;
+        }
+
+        GameRoot? gameRoot = FindGameRoot();
+        if (gameRoot is null)
+        {
+            GD.PushError("[调试] 采集自检失败：缺少 GameRoot");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        SurfaceUnit? gatherUnit = _surfaceUnits.Values.FirstOrDefault(unit => unit.UnitData?.AvailableCommands.Contains("gather") == true);
+        SurfaceMineralDepositView? mineralView = _mineralViews.Values.FirstOrDefault(view => !view.IsDepleted);
+        if (gatherUnit is null || mineralView is null)
+        {
+            GD.PushError("[调试] 采集自检失败：缺少可采集单位或矿产点");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        MineralDepositInstance mineralBefore = expeditionState.MineralDepositStates[mineralView.MineralDepositInstanceId];
+        if (!gameRoot.DataRegistry.TryGetMineralDeposit(mineralBefore.MineralDepositId, out MineralDepositData? mineralData) || mineralData is null)
+        {
+            GD.PushError("[调试] 采集自检失败：矿产点定义缺失");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        int remainingBefore = mineralBefore.RemainingYield;
+        int recordsBefore = expeditionState.GatherRecords.Count;
+        int transfersBefore = gameRoot.Session.InventoryTransfers.Count;
+        int groundBefore = expeditionState.GroundItemStateIds.Count;
+        InventoryContainer? orbitInventory = gameRoot.Session.Inventories.GetValueOrDefault(gameRoot.Session.OrbitState.InventoryId);
+        int orbitBefore = orbitInventory?.GetItemCount(mineralData.YieldItemId) ?? 0;
+
+        ApplySelection(new[] { gatherUnit.UnitInstanceId });
+        IssueGatherCommand(mineralView.MineralDepositInstanceId);
+
+        GatherRecord? latestRecord = expeditionState.GatherRecords.LastOrDefault();
+        int orbitAfter = orbitInventory?.GetItemCount(mineralData.YieldItemId) ?? 0;
+        bool wroteConcreteLocation = gameRoot.Session.InventoryTransfers.Count > transfersBefore ||
+            expeditionState.GroundItemStateIds.Count > groundBefore;
+        if (mineralBefore.RemainingYield >= remainingBefore ||
+            expeditionState.GatherRecords.Count <= recordsBefore ||
+            latestRecord is null ||
+            latestRecord.Result is not ("inventory" or "ground_item") ||
+            !wroteConcreteLocation ||
+            orbitAfter != orbitBefore)
+        {
+            GD.PushError("[调试] 采集自检失败：矿产剩余量、记录、具体位置或轨道库存边界不符合预期");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        GD.Print($"[调试] 采集自检完成：{latestRecord.ItemId} x{latestRecord.Count} -> {latestRecord.Result}");
+    }
+
+    private void RunEconomySelfTestIfRequested(ScenePayload payload, ExpeditionState expeditionState)
+    {
+        if (!payload.DebugEnabled || !HasArgument("--surface-economy-self-test"))
+        {
+            return;
+        }
+
+        GameRoot? gameRoot = FindGameRoot();
+        SurfaceUnit? gatherUnit = _surfaceUnits.Values.FirstOrDefault(unit => unit.UnitData?.AvailableCommands.Contains("gather") == true);
+        if (gameRoot is null || gatherUnit is null)
+        {
+            GD.PushError("[调试] 经济自检失败：缺少 GameRoot 或采集单位");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        SurfaceMiningSystem miningSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        for (int index = 0; index < 5; index++)
+        {
+            if (!TryGatherSpecificMineralForSelfTest(expeditionState, miningSystem, gatherUnit.UnitInstanceId, "mineral_metal_deposit_basic", out string gatherMessage))
+            {
+                GD.PushError($"[调试] 经济自检失败：{gatherMessage}");
+                QuitSelfTestFailure();
+                return;
+            }
+        }
+
+        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry, allowDebugBlueprintBypass: true);
+        int transfersBefore = gameRoot.Session.InventoryTransfers.Count;
+        int logisticsBefore = expeditionState.LogisticsOrderIds.Count;
+        if (!BuildForSelfTest(expeditionState, constructionSystem, "solar_panel", expeditionState.DropPosition + new Vector2I(-110, 210), gatherUnit.UnitInstanceId, out BuildingInstance solarPanel, out string solarMessage))
+        {
+            GD.PushError($"[调试] 经济自检失败：{solarMessage}");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        if (!BuildForSelfTest(expeditionState, constructionSystem, "assembler_basic", expeditionState.DropPosition + new Vector2I(90, 210), gatherUnit.UnitInstanceId, out BuildingInstance assembler, out string assemblerMessage))
+        {
+            GD.PushError($"[调试] 经济自检失败：{assemblerMessage}");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        PowerNetworkState network = constructionSystem.RecalculatePowerNetwork(expeditionState);
+        if (network.State != "online" || solarPanel.PowerState != "online" || assembler.PowerState != "online")
+        {
+            GD.PushError("[调试] 经济自检失败：电力网络未在线");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        if (!constructionSystem.TryDeliverRecipeInputs(expeditionState, assembler.BuildingInstanceId, "recycle_scrap_to_metal", out string inputMessage))
+        {
+            GD.PushError($"[调试] 经济自检失败：{inputMessage}");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        if (!constructionSystem.TryRunRecipe(expeditionState, assembler.BuildingInstanceId, "recycle_scrap_to_metal", out ProductionJobState productionJob, out string productionMessage))
+        {
+            GD.PushError($"[调试] 经济自检失败：{productionMessage}");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        InventoryContainer? outputInventory = gameRoot.Session.Inventories.GetValueOrDefault(assembler.OutputInventoryId);
+        if (productionJob.State != "completed" ||
+            outputInventory is null ||
+            outputInventory.GetItemCount("metal") < 3 ||
+            gameRoot.Session.InventoryTransfers.Count <= transfersBefore ||
+            expeditionState.LogisticsOrderIds.Count <= logisticsBefore)
+        {
+            GD.PushError("[调试] 经济自检失败：生产输出、库存转移或物流订单未写回");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        int repairRecordsBefore = expeditionState.RepairRecords.Count;
+        assembler.Durability = System.Math.Max(0, assembler.MaxDurability - 60);
+        if (!constructionSystem.TryRepairBuilding(expeditionState, assembler.BuildingInstanceId, gatherUnit.UnitInstanceId, out RepairRecord repairRecord, out string repairMessage) ||
+            repairRecord.Result != "completed" ||
+            assembler.Durability != assembler.MaxDurability ||
+            repairRecord.ConsumedTransferIds.Count == 0 ||
+            expeditionState.RepairRecords.Count <= repairRecordsBefore)
+        {
+            GD.PushError($"[调试] 经济自检失败：{repairMessage}");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        GD.Print($"[调试] 经济自检完成：建筑 {expeditionState.BuildingInstanceIds.Count}，物流 {expeditionState.LogisticsOrderIds.Count}，生产 {productionJob.RecipeId}，维修 {repairRecord.RepairRecordId}");
+    }
+
+    private bool TryGatherSpecificMineralForSelfTest(
+        ExpeditionState expeditionState,
+        SurfaceMiningSystem miningSystem,
+        string unitInstanceId,
+        string mineralDepositId,
+        out string message)
+    {
+        MineralDepositInstance? mineral = expeditionState.MineralDepositStates.Values
+            .FirstOrDefault(instance => instance.MineralDepositId == mineralDepositId && !instance.IsDepleted);
+        if (mineral is null)
+        {
+            message = $"缺少自检矿产点：{mineralDepositId}";
+            return false;
+        }
+
+        return miningSystem.TryGather(expeditionState, new[] { unitInstanceId }, mineral.MineralDepositInstanceId, out GatherRecord _, out message);
+    }
+
+    private static bool BuildForSelfTest(
+        ExpeditionState expeditionState,
+        SurfaceConstructionSystem constructionSystem,
+        string buildingId,
+        Vector2I position,
+        string unitInstanceId,
+        out BuildingInstance buildingInstance,
+        out string message)
+    {
+        buildingInstance = new BuildingInstance();
+        if (!constructionSystem.TryCreateConstructionSite(expeditionState, buildingId, position, unitInstanceId, out ConstructionSiteState site, out message))
+        {
+            return false;
+        }
+
+        if (!constructionSystem.TryDeliverConstructionMaterials(expeditionState, site.ConstructionSiteId, out message))
+        {
+            return false;
+        }
+
+        return constructionSystem.TryCompleteConstruction(expeditionState, site.ConstructionSiteId, out buildingInstance, out message);
+    }
+
+    private void RefreshCommandButtons()
+    {
+        HashSet<string> availableCommands = AvailableCommandsForSelection();
+        foreach (KeyValuePair<string, Button> pair in _commandButtons)
+        {
+            pair.Value.Disabled = _selectionState.SelectedUnitInstanceIds.Count == 0 || !availableCommands.Contains(pair.Key);
+        }
+    }
+
+    private HashSet<string> AvailableCommandsForSelection()
+    {
+        HashSet<string> availableCommands = new();
+        bool initialized = false;
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (!_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? surfaceUnit) ||
+                surfaceUnit.UnitData is null)
+            {
+                continue;
+            }
+
+            if (!initialized)
+            {
+                availableCommands.UnionWith(surfaceUnit.UnitData.AvailableCommands);
+                initialized = true;
+            }
+            else
+            {
+                availableCommands.IntersectWith(surfaceUnit.UnitData.AvailableCommands);
+            }
+        }
+
+        return availableCommands;
+    }
+
+    private void HandleCameraMotion(double delta)
+    {
+        if (_camera is null)
+        {
+            return;
+        }
+
+        Vector2 direction = Vector2.Zero;
+        if (Input.IsActionPressed("camera_move_up"))
+        {
+            direction.Y -= 1f;
+        }
+
+        if (Input.IsActionPressed("camera_move_down"))
+        {
+            direction.Y += 1f;
+        }
+
+        if (Input.IsActionPressed("camera_move_left"))
+        {
+            direction.X -= 1f;
+        }
+
+        if (Input.IsActionPressed("camera_move_right"))
+        {
+            direction.X += 1f;
+        }
+
+        if (direction != Vector2.Zero)
+        {
+            _camera.Position += direction.Normalized() * CameraSpeed * (float)delta / _camera.Zoom.X;
+        }
+    }
+
+    private void AdjustZoom(float delta)
+    {
+        if (_camera is null)
+        {
+            return;
+        }
+
+        float nextZoom = Mathf.Clamp(_camera.Zoom.X + delta, 0.55f, 1.7f);
+        _camera.Zoom = new Vector2(nextZoom, nextZoom);
+    }
+
+    private void UpdateDragFrame(Vector2 currentViewport)
+    {
+        if (_dragSelectFrame is null)
+        {
+            return;
+        }
+
+        Rect2 viewportRect = NormalizeRect(_dragStartViewport, currentViewport);
+        _dragSelectFrame.Position = viewportRect.Position;
+        _dragSelectFrame.Size = viewportRect.Size;
+        _dragSelectFrame.Visible = viewportRect.Size.Length() > DragThreshold;
+    }
+
+    private void SetMessage(string message)
+    {
+        if (_messageLabel is not null)
+        {
+            _messageLabel.Text = message;
+        }
+    }
+
+    private void ShowCommandFailure(string message)
+    {
+        if (_commandFailedIcon is not null)
+        {
+            _commandFailedIcon.Visible = true;
+        }
+
+        Texture2D? invalidCursor = UiAssets.LoadTexture("res://assets/ui/surface/cursors/cursor_invalid.png");
+        if (invalidCursor is not null)
+        {
+            Input.SetCustomMouseCursor(invalidCursor, Input.CursorShape.Arrow);
+        }
+
+        SetMessage(message);
+    }
+
+    private void PlaySurfaceAudio(string soundId, string category = "ui")
+    {
+        if (_audioPlayer is null || DisplayServer.GetName() == "headless")
+        {
+            return;
+        }
+
+        string path = $"res://assets/audio/surface/{category}/{soundId}.wav";
+        AudioStream? stream = null;
+        if (ResourceLoader.Exists(path, nameof(AudioStream)))
+        {
+            stream = ResourceLoader.Load<AudioStream>(path);
+        }
+
+        stream ??= FileAccess.FileExists(path) ? AudioStreamWav.LoadFromFile(path) : null;
+        if (stream is null)
+        {
+            return;
+        }
+
+        _audioPlayer.Stream = stream;
+        _audioPlayer.Play();
     }
 
     private ScenePayload CreateReturnPayload(GameRoot gameRoot)
@@ -281,16 +1716,98 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         };
     }
 
-    private static void AddCommandButton(GridContainer commandPanel, string text, string iconPath, System.Action pressed)
+    private static Button AddCommandButton(GridContainer commandPanel, string text, string iconPath, System.Action pressed)
     {
         Button button = new()
         {
             Text = text,
             Icon = UiAssets.LoadTexture(iconPath),
-            CustomMinimumSize = new Vector2(110, 56)
+            CustomMinimumSize = new Vector2(88, 56),
+            ExpandIcon = true
         };
         button.Pressed += pressed;
         commandPanel.AddChild(button);
+        return button;
+    }
+
+    private static void RegisterCommandCursor(Button button, string commandId)
+    {
+        button.MouseEntered += () =>
+        {
+            Texture2D? cursorTexture = UiAssets.LoadTexture(CursorPathForCommand(commandId));
+            if (cursorTexture is not null)
+            {
+                Input.SetCustomMouseCursor(cursorTexture, Input.CursorShape.Arrow);
+            }
+        };
+        button.MouseExited += () => Input.SetCustomMouseCursor(null, Input.CursorShape.Arrow);
+    }
+
+    private static string CursorPathForCommand(string commandId)
+    {
+        return commandId switch
+        {
+            "move" or "stop" => "res://assets/ui/surface/cursors/cursor_move.png",
+            "attack" or "guard" => "res://assets/ui/surface/cursors/cursor_attack.png",
+            "repair" or "return_to_repair" => "res://assets/ui/surface/cursors/cursor_repair.png",
+            "scan" or "hack" or "scout" => "res://assets/ui/surface/cursors/cursor_scan.png",
+            _ => "res://assets/ui/surface/cursors/cursor_invalid.png"
+        };
+    }
+
+    private static Texture2D? LoadOptionalTexture(string path)
+    {
+        if (!ResourceLoader.Exists(path, nameof(Texture2D)) && !FileAccess.FileExists(path))
+        {
+            return null;
+        }
+
+        return UiAssets.LoadTexture(path);
+    }
+
+    private static Rect2 NormalizeRect(Vector2 first, Vector2 second)
+    {
+        Vector2 position = new(Mathf.Min(first.X, second.X), Mathf.Min(first.Y, second.Y));
+        Vector2 end = new(Mathf.Max(first.X, second.X), Mathf.Max(first.Y, second.Y));
+        return new Rect2(position, end - position);
+    }
+
+    private static int GroupIndexFromKey(Key key)
+    {
+        return key switch
+        {
+            Key.Key1 => 1,
+            Key.Key2 => 2,
+            Key.Key3 => 3,
+            Key.Key4 => 4,
+            Key.Key5 => 5,
+            Key.Key6 => 6,
+            Key.Key7 => 7,
+            Key.Key8 => 8,
+            Key.Key9 => 9,
+            _ => 0
+        };
+    }
+
+    private void QuitSelfTestFailure()
+    {
+        if (DisplayServer.GetName() == "headless")
+        {
+            GetTree().Quit(1);
+        }
+    }
+
+    private static bool HasArgument(string key)
+    {
+        foreach (string argument in OS.GetCmdlineArgs())
+        {
+            if (argument == key || argument.StartsWith($"{key}=", System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private GameRoot? FindGameRoot()

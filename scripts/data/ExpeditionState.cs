@@ -16,7 +16,15 @@ public sealed class ExpeditionState
     public List<string> GroundItemStateIds { get; } = new();
     public List<string> ConstructionSiteIds { get; } = new();
     public List<string> LogisticsOrderIds { get; } = new();
+    public Dictionary<string, MineralDepositInstance> MineralDepositStates { get; } = new();
+    public List<ProductionJobState> ProductionJobs { get; } = new();
+    public List<PowerNetworkState> PowerNetworkStates { get; } = new();
+    public List<GatherRecord> GatherRecords { get; } = new();
+    public List<RepairRecord> RepairRecords { get; } = new();
     public List<string> DiscoveredIds { get; } = new();
+    public Dictionary<string, SurfaceUnitRuntimeState> UnitRuntimeStates { get; } = new();
+    public Dictionary<int, ControlGroupState> ControlGroupStates { get; } = new();
+    public List<SurfaceCommandRecord> SurfaceCommandRecords { get; } = new();
     public Dictionary<string, string> EventState { get; } = new();
     public double CreatedAtRunTime { get; set; }
     public Vector2I DropPosition { get; set; }

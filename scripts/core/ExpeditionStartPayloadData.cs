@@ -11,6 +11,7 @@ public sealed class ExpeditionStartPayloadData
     public string DropPodCargoInventoryId { get; set; } = string.Empty;
     public int Seed { get; set; }
     public Vector2I DropPosition { get; set; }
+    public List<string> ActiveUnitInstanceIds { get; } = new();
     public List<UnitStack> InitialUnits { get; } = new();
     public List<ItemStack> InitialItems { get; } = new();
 }

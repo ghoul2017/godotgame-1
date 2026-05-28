@@ -12,6 +12,7 @@ public partial class UnitData : Resource
     public string MovementType { get; set; } = string.Empty;
     public int BaseDurability { get; set; }
     public int BaseEnergy { get; set; }
+    public float MoveSpeed { get; set; } = 100f;
     public int InventoryCapacity { get; set; }
     public float CarryWeightLimit { get; set; }
     public List<string> EquipmentSlots { get; } = new();
