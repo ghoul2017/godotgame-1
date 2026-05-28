@@ -41,6 +41,10 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     private const float DragThreshold = 8f;
     private const float CameraSpeed = 520f;
     private const float ZoomStep = 0.08f;
+    private const float StructureHitRadius = 72f;
+    private const float BuildableRadiusFromDrop = 920f;
+    private const float MineralPlacementSpacing = 96f;
+    private const float UnitPlacementSpacing = 74f;
 
     private readonly Dictionary<string, SurfaceUnit> _surfaceUnits = new();
     private readonly Dictionary<string, SurfaceMineralDepositView> _mineralViews = new();
@@ -63,8 +67,12 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     private Line2D? _pathLine;
     private TextureRect? _groupBadge;
     private TextureRect? _commandFailedIcon;
+    private PanelContainer? _buildCatalogPanel;
+    private VBoxContainer? _buildCatalogList;
     private AudioStreamPlayer? _audioPlayer;
     private ScenePayload? _payload;
+    private string _pendingTargetCommand = string.Empty;
+    private string _pendingBuildBuildingId = string.Empty;
     private Vector2 _dragStartViewport;
     private Vector2 _dragStartWorld;
     private bool _isDraggingSelection;
@@ -367,6 +375,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         root.AddChild(commandPanel);
         RegisterUiInputBlocker(commandPanel);
         BuildCommandButtons(commandPanel);
+        BuildCatalogPanel(root);
 
         VBoxContainer messagePanel = new()
         {
@@ -447,8 +456,54 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             gameRoot.NavigateTo(SceneId.ReturnSummary, returnPayload);
         });
 
-        AddCommandButton(commandPanel, "取消", UiAssets.IconCommand, ClearSelection);
+        AddCommandButton(commandPanel, "取消", UiAssets.IconCommand, () =>
+        {
+            ClearSelection();
+        });
         RefreshCommandButtons();
+    }
+
+    private void BuildCatalogPanel(Control root)
+    {
+        _buildCatalogPanel = new PanelContainer
+        {
+            Name = "BuildCatalogPanel",
+            Visible = false,
+            CustomMinimumSize = new Vector2(304, 320)
+        };
+        _buildCatalogPanel.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
+        _buildCatalogPanel.OffsetLeft = -620;
+        _buildCatalogPanel.OffsetRight = -316;
+        _buildCatalogPanel.OffsetTop = -190;
+        _buildCatalogPanel.OffsetBottom = 190;
+        root.AddChild(_buildCatalogPanel);
+        RegisterUiInputBlocker(_buildCatalogPanel);
+
+        VBoxContainer box = new()
+        {
+            Name = "BuildCatalogBox"
+        };
+        _buildCatalogPanel.AddChild(box);
+        box.AddChild(UiAssets.CreateSectionLabel("建筑目录"));
+
+        ScrollContainer scroll = new()
+        {
+            Name = "BuildCatalogScroll",
+            CustomMinimumSize = new Vector2(288, 250)
+        };
+        box.AddChild(scroll);
+        _buildCatalogList = new VBoxContainer
+        {
+            Name = "BuildCatalogList"
+        };
+        scroll.AddChild(_buildCatalogList);
+
+        Button closeButton = new()
+        {
+            Text = "关闭"
+        };
+        closeButton.Pressed += CancelPendingTargetCommand;
+        box.AddChild(closeButton);
     }
 
     private void HandleMouseButton(InputEventMouseButton mouseButton)
@@ -487,7 +542,14 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         if (mouseButton.ButtonIndex == MouseButton.Right && mouseButton.Pressed)
         {
-            SurfaceMineralDepositView? mineralView = FindMineralAt(GetGlobalMousePosition());
+            Vector2 worldPosition = GetGlobalMousePosition();
+            if (HandlePendingTargetCommand(worldPosition))
+            {
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            SurfaceMineralDepositView? mineralView = FindMineralAt(worldPosition);
             if (mineralView is not null)
             {
                 IssueGatherCommand(mineralView.MineralDepositInstanceId);
@@ -495,7 +557,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
                 return;
             }
 
-            IssueMoveCommand(GetGlobalMousePosition());
+            IssueMoveCommand(worldPosition);
             GetViewport().SetInputAsHandled();
         }
     }
@@ -591,6 +653,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
     private void ApplySelection(IEnumerable<string> unitInstanceIds)
     {
+        CancelPendingTargetCommand();
         List<string> ids = unitInstanceIds.Where(id => _surfaceUnits.ContainsKey(id)).Distinct().ToList();
         _selectionState.SetMany(ids);
         foreach (SurfaceUnit unit in _surfaceUnits.Values)
@@ -604,6 +667,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
     private void ClearSelection()
     {
+        CancelPendingTargetCommand();
         _selectionState.Clear();
         foreach (SurfaceUnit unit in _surfaceUnits.Values)
         {
@@ -774,6 +838,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
     private void HandleCommandButton(string commandId)
     {
+        CancelPendingTargetCommand();
         if (commandId == "move")
         {
             SetMessage("右键地面下达移动指令。");
@@ -802,19 +867,19 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         if (commandId == "build")
         {
-            CreateSelectedConstructionSite();
+            ShowBuildCatalog();
             return;
         }
 
         if (commandId == "haul")
         {
-            DeliverFirstPendingConstructionSite();
+            BeginPendingTargetCommand("haul", string.Empty, "右键施工点创建补料物流并推进施工。");
             return;
         }
 
         if (commandId == "repair")
         {
-            RepairFirstDamagedBuilding();
+            BeginPendingTargetCommand("repair", string.Empty, "右键受损建筑执行维修。");
             return;
         }
 
@@ -822,6 +887,99 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         PlaySurfaceAudio("command_failed");
         ShowCommandFailure($"{CommandDisplayNames[commandId]} 指令入口已接入，具体效果由后续阶段接管。");
         GD.Print($"[指令] {commandId} 目标系统未接入");
+    }
+
+    private void ShowBuildCatalog()
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        if (gameRoot is null || _buildCatalogPanel is null || _buildCatalogList is null)
+        {
+            return;
+        }
+
+        if (_selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("需要先选择执行建造的单位。");
+            return;
+        }
+
+        foreach (Node child in _buildCatalogList.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        foreach (BuildingData buildingData in gameRoot.DataRegistry.Buildings.Values.OrderBy(building => building.DisplayName))
+        {
+            bool hasBlueprint = HasBuildingBlueprint(gameRoot.Session, buildingData);
+            Button button = new()
+            {
+                Text = $"{buildingData.DisplayName}{(hasBlueprint ? string.Empty : "（缺蓝图）")}\n{BuildCostText(buildingData)}",
+                Icon = LoadOptionalTexture(buildingData.IconPath),
+                CustomMinimumSize = new Vector2(284, 68),
+                ExpandIcon = true,
+                TooltipText = buildingData.Description
+            };
+            string buildingId = buildingData.Id;
+            button.Pressed += () => SelectBuildCatalogEntry(buildingId);
+            _buildCatalogList.AddChild(button);
+        }
+
+        _buildCatalogPanel.Visible = true;
+        SetMessage("选择建筑后右键地面放置施工点。");
+    }
+
+    private void SelectBuildCatalogEntry(string buildingId)
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        if (gameRoot is null ||
+            !gameRoot.DataRegistry.TryGetBuilding(buildingId, out BuildingData? buildingData) ||
+            buildingData is null)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure($"找不到建筑定义：{buildingId}");
+            return;
+        }
+
+        if (!HasBuildingBlueprint(gameRoot.Session, buildingData))
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure($"缺少建筑蓝图：{buildingData.RequiresBlueprintId}");
+            return;
+        }
+
+        HideBuildCatalog();
+        BeginPendingTargetCommand("build", buildingData.Id, $"右键地面选择{buildingData.DisplayName}施工位置。");
+    }
+
+    private void HideBuildCatalog()
+    {
+        if (_buildCatalogPanel is not null)
+        {
+            _buildCatalogPanel.Visible = false;
+        }
+    }
+
+    private void CancelPendingTargetCommand()
+    {
+        ClearPendingTargetCommand();
+        HideBuildCatalog();
+    }
+
+    private static bool HasBuildingBlueprint(GameSession session, BuildingData buildingData)
+    {
+        return string.IsNullOrEmpty(buildingData.RequiresBlueprintId) ||
+            session.OrbitState.UnlockedBlueprints.Contains(buildingData.RequiresBlueprintId);
+    }
+
+    private static string BuildCostText(BuildingData buildingData)
+    {
+        if (buildingData.BuildCost.Count == 0)
+        {
+            return "无需材料";
+        }
+
+        return string.Join("  ", buildingData.BuildCost.Select(stack => $"{stack.ItemId} x{stack.Count}"));
     }
 
     private void RenderMinerals(ExpeditionState expeditionState, DataRegistry registry)
@@ -952,7 +1110,81 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         return root;
     }
 
-    private void CreateSelectedConstructionSite()
+    private bool HandlePendingTargetCommand(Vector2 worldPosition)
+    {
+        if (string.IsNullOrEmpty(_pendingTargetCommand))
+        {
+            return false;
+        }
+
+        string command = _pendingTargetCommand;
+        string buildId = _pendingBuildBuildingId;
+        ClearPendingTargetCommand();
+        if (command == "build")
+        {
+            if (string.IsNullOrEmpty(buildId))
+            {
+                PlaySurfaceAudio("command_failed");
+                ShowCommandFailure("需要先从建筑目录选择建筑。");
+                return true;
+            }
+
+            CreateConstructionSiteAtPosition(worldPosition, buildId);
+            return true;
+        }
+
+        if (command == "haul")
+        {
+            string constructionSiteId = FindConstructionSiteAt(worldPosition);
+            if (string.IsNullOrEmpty(constructionSiteId))
+            {
+                PlaySurfaceAudio("command_failed");
+                ShowCommandFailure("右键位置没有可补料施工点。");
+                return true;
+            }
+
+            DeliverConstructionSite(constructionSiteId);
+            return true;
+        }
+
+        if (command == "repair")
+        {
+            string buildingInstanceId = FindBuildingAt(worldPosition);
+            if (string.IsNullOrEmpty(buildingInstanceId))
+            {
+                PlaySurfaceAudio("command_failed");
+                ShowCommandFailure("右键位置没有可维修建筑。");
+                return true;
+            }
+
+            RepairBuilding(buildingInstanceId);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void BeginPendingTargetCommand(string commandId, string buildBuildingId, string message)
+    {
+        if (_selectionState.SelectedUnitInstanceIds.Count == 0)
+        {
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure("需要先选择执行单位。");
+            return;
+        }
+
+        _pendingTargetCommand = commandId;
+        _pendingBuildBuildingId = buildBuildingId;
+        SetMessage(message);
+    }
+
+    private void ClearPendingTargetCommand()
+    {
+        _pendingTargetCommand = string.Empty;
+        _pendingBuildBuildingId = string.Empty;
+    }
+
+    private void CreateConstructionSiteAtPosition(Vector2 worldPosition, string buildingId)
     {
         GameRoot? gameRoot = FindGameRoot();
         ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
@@ -962,22 +1194,126 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         }
 
         string assignedUnit = _selectionState.SelectedUnitInstanceIds.FirstOrDefault() ?? string.Empty;
-        Vector2I position = expeditionState.DropPosition + new Vector2I(112, 180 + expeditionState.ConstructionSiteIds.Count * 56);
-        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
-        if (!constructionSystem.TryCreateConstructionSite(expeditionState, "storage_box", position, assignedUnit, out ConstructionSiteState site, out string message))
+        Vector2I position = new(Mathf.RoundToInt(worldPosition.X), Mathf.RoundToInt(worldPosition.Y));
+        if (!gameRoot.DataRegistry.TryGetBuilding(buildingId, out BuildingData? buildingData) || buildingData is null)
         {
+            string missingMessage = $"找不到建筑定义：{buildingId}";
+            RecordTargetCommand(expeditionState, "build", "ground", buildingId, worldPosition, "failed", missingMessage);
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(missingMessage);
+            return;
+        }
+
+        if (!ValidateBuildPlacement(expeditionState, gameRoot.Session, gameRoot.DataRegistry, buildingData, position, out string placementMessage))
+        {
+            RecordTargetCommand(expeditionState, "build", "ground", buildingId, worldPosition, "failed", placementMessage);
+            PlaySurfaceAudio("command_failed");
+            ShowCommandFailure(placementMessage);
+            return;
+        }
+
+        SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
+        if (!constructionSystem.TryCreateConstructionSite(expeditionState, buildingId, position, assignedUnit, out ConstructionSiteState site, out string message))
+        {
+            RecordTargetCommand(expeditionState, "build", "ground", buildingId, worldPosition, "failed", message);
             PlaySurfaceAudio("command_failed");
             ShowCommandFailure(message);
             return;
         }
 
+        RecordTargetCommand(expeditionState, "build", "construction_site", site.ConstructionSiteId, worldPosition, "accepted", string.Empty);
         PlaySurfaceAudio("place_building", "build");
         SetMessage($"{message}，等待物流送入材料。");
         RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
         GD.Print($"[建造] build 指令创建施工点：{site.ConstructionSiteId}");
     }
 
-    private void DeliverFirstPendingConstructionSite()
+    private bool ValidateBuildPlacement(
+        ExpeditionState expeditionState,
+        GameSession session,
+        DataRegistry registry,
+        BuildingData buildingData,
+        Vector2I position,
+        out string message)
+    {
+        Vector2 targetPosition = new(position.X, position.Y);
+        Vector2 dropPosition = new(expeditionState.DropPosition.X, expeditionState.DropPosition.Y);
+        if (targetPosition.DistanceTo(dropPosition) > BuildableRadiusFromDrop)
+        {
+            message = "建造位置超出当前可操作地表范围。";
+            return false;
+        }
+
+        float placementRadius = PlacementRadius(buildingData);
+        foreach (string siteId in expeditionState.ConstructionSiteIds)
+        {
+            if (!session.ConstructionSites.TryGetValue(siteId, out ConstructionSiteState? site) ||
+                site.State == "completed")
+            {
+                continue;
+            }
+
+            float otherRadius = registry.TryGetBuilding(site.BuildingId, out BuildingData? otherData) && otherData is not null
+                ? PlacementRadius(otherData)
+                : StructureHitRadius;
+            if (new Vector2(site.Position.X, site.Position.Y).DistanceTo(targetPosition) < placementRadius + otherRadius)
+            {
+                message = "建造位置与施工点重叠。";
+                return false;
+            }
+        }
+
+        foreach (string buildingInstanceId in expeditionState.BuildingInstanceIds)
+        {
+            if (!session.BuildingInstances.TryGetValue(buildingInstanceId, out BuildingInstance? buildingInstance))
+            {
+                continue;
+            }
+
+            float otherRadius = registry.TryGetBuilding(buildingInstance.BuildingId, out BuildingData? otherData) && otherData is not null
+                ? PlacementRadius(otherData)
+                : StructureHitRadius;
+            if (new Vector2(buildingInstance.Position.X, buildingInstance.Position.Y).DistanceTo(targetPosition) < placementRadius + otherRadius)
+            {
+                message = "建造位置与已建建筑重叠。";
+                return false;
+            }
+        }
+
+        foreach (MineralDepositInstance mineral in expeditionState.MineralDepositStates.Values)
+        {
+            if (!mineral.IsDiscovered || mineral.IsDepleted)
+            {
+                continue;
+            }
+
+            if (new Vector2(mineral.Position.X, mineral.Position.Y).DistanceTo(targetPosition) < placementRadius + MineralPlacementSpacing)
+            {
+                message = "建造位置阻挡矿产点。";
+                return false;
+            }
+        }
+
+        foreach (SurfaceUnit unit in _surfaceUnits.Values)
+        {
+            if (unit.Position.DistanceTo(targetPosition) < placementRadius + UnitPlacementSpacing)
+            {
+                message = "建造位置被单位占用。";
+                return false;
+            }
+        }
+
+        message = string.Empty;
+        return true;
+    }
+
+    private static float PlacementRadius(BuildingData buildingData)
+    {
+        float longestSide = Mathf.Max((float)buildingData.Footprint.X, (float)buildingData.Footprint.Y);
+        return Mathf.Max(56f, longestSide * 32f);
+    }
+
+    private void DeliverConstructionSite(string siteId)
     {
         GameRoot? gameRoot = FindGameRoot();
         ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
@@ -986,18 +1322,10 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             return;
         }
 
-        string siteId = expeditionState.ConstructionSiteIds.FirstOrDefault(siteId =>
-            gameRoot.Session.ConstructionSites.TryGetValue(siteId, out ConstructionSiteState? site) && site.State != "completed") ?? string.Empty;
-        if (string.IsNullOrEmpty(siteId))
-        {
-            PlaySurfaceAudio("command_failed");
-            ShowCommandFailure("没有等待补料的施工点。");
-            return;
-        }
-
         SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
         if (!constructionSystem.TryDeliverConstructionMaterials(expeditionState, siteId, out string deliveryMessage))
         {
+            RecordTargetCommand(expeditionState, "haul", "construction_site", siteId, ConstructionSitePosition(gameRoot.Session, siteId), "failed", deliveryMessage);
             PlaySurfaceAudio("command_failed");
             ShowCommandFailure(deliveryMessage);
             return;
@@ -1005,18 +1333,20 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         if (!constructionSystem.TryCompleteConstruction(expeditionState, siteId, out BuildingInstance _, out string completeMessage))
         {
+            RecordTargetCommand(expeditionState, "haul", "construction_site", siteId, ConstructionSitePosition(gameRoot.Session, siteId), "failed", completeMessage);
             PlaySurfaceAudio("command_failed");
             ShowCommandFailure(completeMessage);
             return;
         }
 
+        RecordTargetCommand(expeditionState, "haul", "construction_site", siteId, ConstructionSitePosition(gameRoot.Session, siteId), "completed", string.Empty);
         constructionSystem.RecalculatePowerNetwork(expeditionState);
         PlaySurfaceAudio("build_complete", "build");
         SetMessage(completeMessage);
         RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
     }
 
-    private void RepairFirstDamagedBuilding()
+    private void RepairBuilding(string buildingInstanceId)
     {
         GameRoot? gameRoot = FindGameRoot();
         ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
@@ -1025,27 +1355,121 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             return;
         }
 
-        string buildingInstanceId = expeditionState.BuildingInstanceIds.FirstOrDefault(id =>
-            gameRoot.Session.BuildingInstances.TryGetValue(id, out BuildingInstance? building) &&
-            building.Durability < building.MaxDurability) ?? string.Empty;
         string unitInstanceId = _selectionState.SelectedUnitInstanceIds.FirstOrDefault() ?? expeditionState.ActiveUnitInstanceIds.FirstOrDefault() ?? string.Empty;
-        if (string.IsNullOrEmpty(buildingInstanceId) || string.IsNullOrEmpty(unitInstanceId))
+        if (string.IsNullOrEmpty(unitInstanceId))
         {
             PlaySurfaceAudio("command_failed");
-            ShowCommandFailure("没有受损建筑或可执行维修的单位。");
+            ShowCommandFailure("没有可执行维修的单位。");
             return;
         }
 
         SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry);
         if (!constructionSystem.TryRepairBuilding(expeditionState, buildingInstanceId, unitInstanceId, out RepairRecord _, out string message))
         {
+            RecordTargetCommand(expeditionState, "repair", "building_friendly", buildingInstanceId, BuildingPosition(gameRoot.Session, buildingInstanceId), "failed", message);
             PlaySurfaceAudio("command_failed");
             ShowCommandFailure(message);
             return;
         }
 
+        RecordTargetCommand(expeditionState, "repair", "building_friendly", buildingInstanceId, BuildingPosition(gameRoot.Session, buildingInstanceId), "completed", string.Empty);
         SetMessage(message);
         RenderSurfaceStructures(expeditionState, gameRoot.DataRegistry, gameRoot.Session);
+    }
+
+    private void RecordTargetCommand(
+        ExpeditionState expeditionState,
+        string commandType,
+        string targetType,
+        string targetId,
+        Vector2 targetPosition,
+        string result,
+        string failureReason)
+    {
+        UnitCommand command = new()
+        {
+            CommandType = commandType,
+            TargetType = targetType,
+            TargetId = targetId,
+            TargetPosition = targetPosition,
+            IssuedAt = Time.GetUnixTimeFromSystem(),
+            ValidationState = result == "failed" ? "rejected" : "accepted",
+            FailureReason = failureReason
+        };
+        command.SourceUnitInstanceIds.AddRange(_selectionState.SelectedUnitInstanceIds);
+        SurfaceCommandRecord record = new()
+        {
+            ExpeditionId = expeditionState.ExpeditionId,
+            CommandId = command.CommandId,
+            CommandType = commandType,
+            TargetType = targetType,
+            TargetId = targetId,
+            TargetPosition = targetPosition,
+            Result = result,
+            FailureReason = failureReason,
+            CreatedAt = Time.GetUnixTimeFromSystem()
+        };
+        record.UnitInstanceIds.AddRange(command.SourceUnitInstanceIds);
+        expeditionState.SurfaceCommandRecords.Add(record);
+        foreach (string unitInstanceId in _selectionState.SelectedUnitInstanceIds)
+        {
+            if (_surfaceUnits.TryGetValue(unitInstanceId, out SurfaceUnit? surfaceUnit) && surfaceUnit.RuntimeState is not null)
+            {
+                surfaceUnit.RuntimeState.CommandQueue.Clear();
+                surfaceUnit.RuntimeState.CommandQueue.Add(command);
+                surfaceUnit.RuntimeState.CurrentCommandId = command.CommandId;
+                surfaceUnit.RuntimeState.CurrentTargetPosition = targetPosition;
+                surfaceUnit.RuntimeState.MovementState = commandType;
+            }
+        }
+    }
+
+    private string FindConstructionSiteAt(Vector2 worldPosition)
+    {
+        GameSession? session = FindGameRoot()?.Session;
+        ExpeditionState? expeditionState = session?.ActiveExpedition;
+        if (session is null || expeditionState is null)
+        {
+            return string.Empty;
+        }
+
+        return expeditionState.ConstructionSiteIds
+            .Select(siteId => session.ConstructionSites.TryGetValue(siteId, out ConstructionSiteState? site) ? site : null)
+            .Where(site => site is not null && site.State != "completed")
+            .OrderBy(site => new Vector2(site!.Position.X, site.Position.Y).DistanceTo(worldPosition))
+            .FirstOrDefault(site => new Vector2(site!.Position.X, site.Position.Y).DistanceTo(worldPosition) <= StructureHitRadius)
+            ?.ConstructionSiteId ?? string.Empty;
+    }
+
+    private string FindBuildingAt(Vector2 worldPosition)
+    {
+        GameSession? session = FindGameRoot()?.Session;
+        ExpeditionState? expeditionState = session?.ActiveExpedition;
+        if (session is null || expeditionState is null)
+        {
+            return string.Empty;
+        }
+
+        return expeditionState.BuildingInstanceIds
+            .Select(buildingId => session.BuildingInstances.TryGetValue(buildingId, out BuildingInstance? building) ? building : null)
+            .Where(building => building is not null)
+            .OrderBy(building => new Vector2(building!.Position.X, building.Position.Y).DistanceTo(worldPosition))
+            .FirstOrDefault(building => new Vector2(building!.Position.X, building.Position.Y).DistanceTo(worldPosition) <= StructureHitRadius)
+            ?.BuildingInstanceId ?? string.Empty;
+    }
+
+    private static Vector2 ConstructionSitePosition(GameSession session, string constructionSiteId)
+    {
+        return session.ConstructionSites.TryGetValue(constructionSiteId, out ConstructionSiteState? site)
+            ? new Vector2(site.Position.X, site.Position.Y)
+            : Vector2.Zero;
+    }
+
+    private static Vector2 BuildingPosition(GameSession session, string buildingInstanceId)
+    {
+        return session.BuildingInstances.TryGetValue(buildingInstanceId, out BuildingInstance? building)
+            ? new Vector2(building.Position.X, building.Position.Y)
+            : Vector2.Zero;
     }
 
     private SurfaceMineralDepositView? FindMineralAt(Vector2 worldPosition)
@@ -1415,12 +1839,26 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             }
         }
 
+        ApplySelection(new[] { gatherUnit.UnitInstanceId });
         SurfaceConstructionSystem constructionSystem = new(gameRoot.Session, gameRoot.DataRegistry, allowDebugBlueprintBypass: true);
         int transfersBefore = gameRoot.Session.InventoryTransfers.Count;
         int logisticsBefore = expeditionState.LogisticsOrderIds.Count;
-        if (!BuildForSelfTest(expeditionState, constructionSystem, "solar_panel", expeditionState.DropPosition + new Vector2I(-110, 210), gatherUnit.UnitInstanceId, out BuildingInstance solarPanel, out string solarMessage))
+        int commandRecordsBefore = expeditionState.SurfaceCommandRecords.Count;
+        Vector2I solarPosition = expeditionState.DropPosition + new Vector2I(-310, 250);
+        CreateConstructionSiteAtPosition(new Vector2(solarPosition.X, solarPosition.Y), "solar_panel");
+        string solarSiteId = FindConstructionSiteAt(new Vector2(solarPosition.X, solarPosition.Y));
+        if (string.IsNullOrEmpty(solarSiteId))
         {
-            GD.PushError($"[调试] 经济自检失败：{solarMessage}");
+            GD.PushError("[调试] 经济自检失败：目标建造指令没有创建太阳能板施工点");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        DeliverConstructionSite(solarSiteId);
+        BuildingInstance? solarPanel = FindCompletedBuildingForSelfTest(gameRoot.Session, expeditionState, "solar_panel", solarPosition);
+        if (solarPanel is null)
+        {
+            GD.PushError("[调试] 经济自检失败：目标补料指令没有完成太阳能板");
             QuitSelfTestFailure();
             return;
         }
@@ -1468,13 +1906,16 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         int repairRecordsBefore = expeditionState.RepairRecords.Count;
         assembler.Durability = System.Math.Max(0, assembler.MaxDurability - 60);
-        if (!constructionSystem.TryRepairBuilding(expeditionState, assembler.BuildingInstanceId, gatherUnit.UnitInstanceId, out RepairRecord repairRecord, out string repairMessage) ||
+        RepairBuilding(assembler.BuildingInstanceId);
+        RepairRecord? repairRecord = expeditionState.RepairRecords.LastOrDefault(record => record.TargetId == assembler.BuildingInstanceId);
+        if (repairRecord is null ||
             repairRecord.Result != "completed" ||
             assembler.Durability != assembler.MaxDurability ||
             repairRecord.ConsumedTransferIds.Count == 0 ||
-            expeditionState.RepairRecords.Count <= repairRecordsBefore)
+            expeditionState.RepairRecords.Count <= repairRecordsBefore ||
+            expeditionState.SurfaceCommandRecords.Count < commandRecordsBefore + 3)
         {
-            GD.PushError($"[调试] 经济自检失败：{repairMessage}");
+            GD.PushError("[调试] 经济自检失败：目标维修指令或指令记录未写回");
             QuitSelfTestFailure();
             return;
         }
@@ -1498,6 +1939,19 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         }
 
         return miningSystem.TryGather(expeditionState, new[] { unitInstanceId }, mineral.MineralDepositInstanceId, out GatherRecord _, out message);
+    }
+
+    private static BuildingInstance? FindCompletedBuildingForSelfTest(
+        GameSession session,
+        ExpeditionState expeditionState,
+        string buildingId,
+        Vector2I position)
+    {
+        return expeditionState.BuildingInstanceIds
+            .Select(instanceId => session.BuildingInstances.TryGetValue(instanceId, out BuildingInstance? building) ? building : null)
+            .LastOrDefault(building => building is not null &&
+                building.BuildingId == buildingId &&
+                building.Position == position);
     }
 
     private static bool BuildForSelfTest(
