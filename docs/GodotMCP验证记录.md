@@ -9,6 +9,35 @@
 - 使用 Node MCP SDK 通过 stdio 手动启动旧 GodotMCP 包，可以连通当前项目 `/Users/gejiayi/godots/godotgame-1`。
 - Godot 可执行文件路径为：`/Applications/Godot_mono.app/Contents/MacOS/Godot`。
 
+## 2026-05-28 并行 MCP 验证
+
+- 已按 `docs/工作编排文档.md` 的并行验证通道，由只读 MCP 验证子代理先执行 `ls docs`，再通过 GodotMCP 启动当前项目。
+- `mcp__godot__.get_project_info` 识别项目名 `godotgame1`，Godot 版本为 `4.6.3.stable.mono.official.7d41c59c4`。
+- `mcp__godot__.run_project` 成功启动项目，`mcp__godot__.get_debug_output` / 日志读取到：
+
+```text
+McpInteractionServer: Listening on 127.0.0.1:9090
+[启动] 主入口初始化开始
+[输入] Input Map 基础行为已确认
+[启动] 主入口初始化完成
+McpInteractionServer: Client connected
+```
+
+- `mcp__godot__.game_get_scene_tree` 读取到运行时树，关键节点包括：
+
+```text
+root Window
+├── McpInteractionServer Node
+└── GameRoot Control
+    ├── MainBackground TextureRect
+    └── RootLayout VBoxContainer
+        ├── MainMenu PanelContainer
+        └── SceneContainer Control
+```
+
+- `mcp__godot__.stop_project` 成功停止项目。
+- 本轮未发现项目启动失败或主场景缺失。仍可见 MCP 注入脚本 `res://mcp_interaction_server.gd` 的 GDScript warning；该 warning 属于 MCP 交互脚本，不作为当前项目 C# 主入口缺陷处理。
+
 ## 2026-05-27 本轮 Codex MCP 实测
 
 - `tool_search` 查询 Godot 后成功暴露 `mcp__godot__` 精简工具集。

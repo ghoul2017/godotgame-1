@@ -73,6 +73,8 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     private ScenePayload? _payload;
     private string _pendingTargetCommand = string.Empty;
     private string _pendingBuildBuildingId = string.Empty;
+    private string _selectedBuildingInstanceId = string.Empty;
+    private string _selectedConstructionSiteId = string.Empty;
     private Vector2 _dragStartViewport;
     private Vector2 _dragStartWorld;
     private bool _isDraggingSelection;
@@ -642,6 +644,11 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             .FirstOrDefault();
         if (closestUnit is null)
         {
+            if (SelectStructureAtPoint(worldPosition))
+            {
+                return;
+            }
+
             ClearSelection();
             return;
         }
@@ -654,6 +661,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     private void ApplySelection(IEnumerable<string> unitInstanceIds)
     {
         CancelPendingTargetCommand();
+        ClearStructureSelection();
         List<string> ids = unitInstanceIds.Where(id => _surfaceUnits.ContainsKey(id)).Distinct().ToList();
         _selectionState.SetMany(ids);
         foreach (SurfaceUnit unit in _surfaceUnits.Values)
@@ -668,6 +676,7 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
     private void ClearSelection()
     {
         CancelPendingTargetCommand();
+        ClearStructureSelection();
         _selectionState.Clear();
         foreach (SurfaceUnit unit in _surfaceUnits.Values)
         {
@@ -676,6 +685,57 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
 
         RefreshSelectionUi();
         RefreshCommandButtons();
+    }
+
+    private bool SelectStructureAtPoint(Vector2 worldPosition)
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null || expeditionState is null)
+        {
+            return false;
+        }
+
+        string constructionSiteId = FindConstructionSiteAt(worldPosition);
+        if (!string.IsNullOrEmpty(constructionSiteId))
+        {
+            SelectStructure(constructionSiteId, string.Empty);
+            PlaySurfaceAudio("select_unit");
+            GD.Print($"[输入] 选择施工点：{constructionSiteId}");
+            return true;
+        }
+
+        string buildingInstanceId = FindBuildingAt(worldPosition);
+        if (!string.IsNullOrEmpty(buildingInstanceId))
+        {
+            SelectStructure(string.Empty, buildingInstanceId);
+            PlaySurfaceAudio("select_unit");
+            GD.Print($"[输入] 选择建筑：{buildingInstanceId}");
+            return true;
+        }
+
+        return false;
+    }
+
+    private void SelectStructure(string constructionSiteId, string buildingInstanceId)
+    {
+        CancelPendingTargetCommand();
+        _selectionState.Clear();
+        foreach (SurfaceUnit unit in _surfaceUnits.Values)
+        {
+            unit.SetSelected(false);
+        }
+
+        _selectedConstructionSiteId = constructionSiteId;
+        _selectedBuildingInstanceId = buildingInstanceId;
+        RefreshSelectionUi();
+        RefreshCommandButtons();
+    }
+
+    private void ClearStructureSelection()
+    {
+        _selectedConstructionSiteId = string.Empty;
+        _selectedBuildingInstanceId = string.Empty;
     }
 
     private void IssueMoveCommand(Vector2 targetPosition)
@@ -1636,6 +1696,16 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             return;
         }
 
+        if (!string.IsNullOrEmpty(_selectedConstructionSiteId) && TryRefreshConstructionSiteSelection())
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(_selectedBuildingInstanceId) && TryRefreshBuildingSelection())
+        {
+            return;
+        }
+
         if (_selectionState.SelectedUnitInstanceIds.Count == 0)
         {
             _selectionLabel.Text = "未选择单位";
@@ -1680,6 +1750,107 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
         }
 
         _selectionLabel.Text = $"已选择 {_selectionState.SelectedUnitInstanceIds.Count} 个单位\n可用命令取交集显示。";
+    }
+
+    private bool TryRefreshConstructionSiteSelection()
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null ||
+            expeditionState is null ||
+            string.IsNullOrEmpty(_selectedConstructionSiteId) ||
+            !gameRoot.Session.ConstructionSites.TryGetValue(_selectedConstructionSiteId, out ConstructionSiteState? site) ||
+            !gameRoot.DataRegistry.TryGetBuilding(site.BuildingId, out BuildingData? buildingData) ||
+            buildingData is null)
+        {
+            ClearStructureSelection();
+            return false;
+        }
+
+        if (_selectionPortrait is not null)
+        {
+            _selectionPortrait.Texture = UiAssets.LoadTexture(buildingData.ConstructionSpritePath);
+        }
+
+        if (_behaviorModeButton is not null)
+        {
+            _behaviorModeButton.Disabled = true;
+            _behaviorModeButton.Text = "施工点";
+        }
+
+        _selectionLabel!.Text =
+            $"{buildingData.DisplayName} 施工点\n状态 {site.State}  进度 {site.ConstructionProgress * 100f:0}%\n需求 {StackSummary(site.RequiredItems)}\n已送达 {InventorySummary(gameRoot.Session, site.DeliveredInventoryId)}";
+        return true;
+    }
+
+    private bool TryRefreshBuildingSelection()
+    {
+        GameRoot? gameRoot = FindGameRoot();
+        ExpeditionState? expeditionState = gameRoot?.Session.ActiveExpedition;
+        if (gameRoot is null ||
+            expeditionState is null ||
+            string.IsNullOrEmpty(_selectedBuildingInstanceId) ||
+            !gameRoot.Session.BuildingInstances.TryGetValue(_selectedBuildingInstanceId, out BuildingInstance? building) ||
+            !gameRoot.DataRegistry.TryGetBuilding(building.BuildingId, out BuildingData? buildingData) ||
+            buildingData is null)
+        {
+            ClearStructureSelection();
+            return false;
+        }
+
+        if (_selectionPortrait is not null)
+        {
+            _selectionPortrait.Texture = UiAssets.LoadTexture(buildingData.IconPath);
+        }
+
+        if (_behaviorModeButton is not null)
+        {
+            _behaviorModeButton.Disabled = true;
+            _behaviorModeButton.Text = "建筑";
+        }
+
+        ProductionJobState? latestJob = expeditionState.ProductionJobs
+            .LastOrDefault(job => job.BuildingInstanceId == building.BuildingInstanceId);
+        string productionText = latestJob is null
+            ? "无生产任务"
+            : $"{latestJob.RecipeId} {latestJob.State} {latestJob.Progress * 100f:0}%";
+        _selectionLabel!.Text =
+            $"{buildingData.DisplayName}\n耐久 {building.Durability}/{building.MaxDurability}  电力 {building.PowerState}\n施工 {building.ConstructionProgress * 100f:0}%  生产 {productionText}\n输入 {InventorySummary(gameRoot.Session, building.InputInventoryId)}\n输出 {InventorySummary(gameRoot.Session, building.OutputInventoryId)}";
+        return true;
+    }
+
+    private static string StackSummary(IEnumerable<ItemStack> stacks)
+    {
+        List<string> parts = stacks
+            .Where(stack => stack.Count > 0)
+            .Select(stack => $"{stack.ItemId} x{stack.Count}")
+            .ToList();
+        return parts.Count == 0 ? "无" : string.Join("  ", parts);
+    }
+
+    private static string InventorySummary(GameSession session, string inventoryId)
+    {
+        if (string.IsNullOrEmpty(inventoryId) ||
+            !session.Inventories.TryGetValue(inventoryId, out InventoryContainer? inventory))
+        {
+            return "无";
+        }
+
+        if (inventory.ItemStacks.Count == 0 && inventory.ItemInstanceIds.Count == 0)
+        {
+            return "空";
+        }
+
+        List<string> parts = inventory.ItemStacks
+            .Where(stack => stack.Count > 0)
+            .Select(stack => $"{stack.ItemId} x{stack.Count}")
+            .ToList();
+        if (inventory.ItemInstanceIds.Count > 0)
+        {
+            parts.Add($"实例 x{inventory.ItemInstanceIds.Count}");
+        }
+
+        return string.Join("  ", parts);
     }
 
     private void CycleSelectedBehaviorMode()
@@ -1854,6 +2025,17 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             return;
         }
 
+        SelectStructure(solarSiteId, string.Empty);
+        if (_selectionLabel is null ||
+            !_selectionLabel.Text.Contains("施工点") ||
+            !_selectionLabel.Text.Contains("需求"))
+        {
+            GD.PushError("[调试] 经济自检失败：施工点详情未刷新");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        ApplySelection(new[] { gatherUnit.UnitInstanceId });
         DeliverConstructionSite(solarSiteId);
         BuildingInstance? solarPanel = FindCompletedBuildingForSelfTest(gameRoot.Session, expeditionState, "solar_panel", solarPosition);
         if (solarPanel is null)
@@ -1916,6 +2098,17 @@ public partial class SurfaceExpedition : Node2D, ScenePayloadReceiver
             expeditionState.SurfaceCommandRecords.Count < commandRecordsBefore + 3)
         {
             GD.PushError("[调试] 经济自检失败：目标维修指令或指令记录未写回");
+            QuitSelfTestFailure();
+            return;
+        }
+
+        SelectStructure(string.Empty, assembler.BuildingInstanceId);
+        if (_selectionLabel is null ||
+            !_selectionLabel.Text.Contains("电力") ||
+            !_selectionLabel.Text.Contains("输入") ||
+            !_selectionLabel.Text.Contains("输出"))
+        {
+            GD.PushError("[调试] 经济自检失败：建筑详情未刷新");
             QuitSelfTestFailure();
             return;
         }
